@@ -6,6 +6,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/responsive/responsive_controller.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
+import '../../domain/models/evidence_item_model.dart';
 import '../controllers/evidence_controller.dart';
 import '../widgets/canonical_json_viewer.dart';
 // import '../widgets/csv_upload_card.dart';
@@ -73,55 +74,143 @@ class EvidenceConsoleScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Live API vs Mock Mode Switch
-                Obx(() => Tooltip(
-                      message: controller.isMockMode.value
-                          ? 'Offline Demo Mode: Local simulation with mock SHA-256 and latency measurements. Click switch to connect to live FastAPI backend at localhost:8000.'
-                          : 'Live Backend Mode: Connected to FastAPI backend at http://localhost:8000 with real Supabase Object Storage & Database persistence.',
+                // Action Controls: Retest, Refresh & Live API Switch
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Retest / Reset Session Button
+                    Tooltip(
+                      message: 'Reset current inspection session and re-arm for a fresh test cycle',
                       waitDuration: const Duration(milliseconds: 200),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: controller.isMockMode.value ? AppColors.sensorTemp.withValues(alpha: 0.12) : AppColors.success.withValues(alpha: 0.12),
-                          borderRadius: const BorderRadius.all(Radius.circular(20)),
-                          border: Border.all(
-                            color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              controller.isMockMode.value ? Icons.offline_bolt_rounded : Icons.cloud_done_rounded,
-                              size: 16,
-                              color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              controller.isMockMode.value ? 'OFFLINE DEMO MODE' : 'LIVE API (localhost:8000)',
-                              style: AppTextStyles.labelCaps.copyWith(
-                                color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Switch(
-                              value: controller.isMockMode.value,
-                              onChanged: (_) => controller.toggleMockMode(),
-                              activeThumbColor: AppColors.sensorTemp,
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ],
+                      child: OutlinedButton.icon(
+                        onPressed: controller.resetRetestSession,
+                        icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                        label: const Text('Reset / Retest'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+                          foregroundColor: AppColors.slate900,
+                          side: const BorderSide(color: AppColors.borderLight),
                         ),
                       ),
-                    )),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+
+                    // Refresh Ledger Button
+                    Tooltip(
+                      message: 'Fetch latest synchronized cycle records from Supabase database',
+                      waitDuration: const Duration(milliseconds: 200),
+                      child: OutlinedButton.icon(
+                        onPressed: controller.refreshLedger,
+                        icon: const Icon(Icons.sync_rounded, size: 16),
+                        label: const Text('Refresh'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+                          foregroundColor: AppColors.slate900,
+                          side: const BorderSide(color: AppColors.borderLight),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+
+                    // Live API vs Mock Mode Switch
+                    Obx(() => Tooltip(
+                          message: controller.isMockMode.value
+                              ? 'Offline Demo Mode: Local simulation with mock SHA-256 and latency measurements. Click switch to connect to live FastAPI backend at localhost:8000.'
+                              : 'Live Backend Mode: Connected to FastAPI backend at http://localhost:8000 with real Supabase Object Storage & Database persistence.',
+                          waitDuration: const Duration(milliseconds: 200),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: controller.isMockMode.value ? AppColors.sensorTemp.withValues(alpha: 0.12) : AppColors.success.withValues(alpha: 0.12),
+                              borderRadius: const BorderRadius.all(Radius.circular(20)),
+                              border: Border.all(
+                                color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  controller.isMockMode.value ? Icons.offline_bolt_rounded : Icons.cloud_done_rounded,
+                                  size: 16,
+                                  color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Text(
+                                  controller.isMockMode.value ? 'OFFLINE DEMO MODE' : 'LIVE API (localhost:8000)',
+                                  style: AppTextStyles.labelCaps.copyWith(
+                                    color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Switch(
+                                  value: controller.isMockMode.value,
+                                  onChanged: (_) => controller.toggleMockMode(),
+                                  activeThumbColor: AppColors.sensorTemp,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )),
+                  ],
+                ),
               ],
             ),
 
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
 
-            // Ingestion Mode (Focused strictly on 17-Sensor Hydraulic Rig)
+            // Dataset Architecture & Temporal Context Banner (Explaining 2,205 Cycles = ~36.8 Hours)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: AppColors.primaryDark, size: 18),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.slate900, fontSize: 12),
+                        children: const [
+                          TextSpan(
+                            text: 'UCI Hydraulic Bench Dataset Architecture: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(
+                            text: 'Contains ',
+                          ),
+                          TextSpan(
+                            text: '2,205 discrete operational cycles (~36.8 total hours of physical machine execution)',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+                          ),
+                          TextSpan(
+                            text: '. Each line in the 17 raw text files represents ',
+                          ),
+                          TextSpan(
+                            text: '1 full 60-second machine cycle (43,680 synchronized data points)',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(
+                            text: '. Select any cycle (1 to 2,205) on the left to inspect its health condition, run forensic sealing, or retest.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // Ingestion Mode Header (Hydraulic Rig Stream)
             Container(
               decoration: BoxDecoration(
                 color: AppColors.bgLight,
@@ -129,45 +218,13 @@ class EvidenceConsoleScreen extends StatelessWidget {
                 border: Border.all(color: AppColors.borderLight),
               ),
               padding: const EdgeInsets.all(4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ConsoleTabButton(
-                      label: '17-Sensor Hydraulic Rig Stream',
-                      badge: 'PRIMARY DEMO • 100 Hz',
-                      tooltip: 'Discrete 60-second machine cycles from UCI Hydraulic Test Bench across 17 synchronized sensors (PS1..PS6, FS1..FS2, TS1..TS4, etc.).',
-                      icon: Icons.speed_rounded,
-                      isSelected: true,
-                      activeColor: AppColors.primary,
-                      onTap: () {},
-                    ),
-                  ),
-                  /*
-                  // CSV and PDF tabs temporarily commented out for focused QA experience
-                  Expanded(
-                    child: _ConsoleTabButton(
-                      label: 'Continuous Fleet Logs (CSV)',
-                      badge: 'Roadmap • MetroPT / SCANIA',
-                      tooltip: 'Secondary continuous multi-sensor CSV streams for Metro do Porto train compressor & SCANIA heavy fleet (Phase 2 Roadmap).',
-                      icon: Icons.table_chart_rounded,
-                      isSelected: activeTab == 1,
-                      activeColor: AppColors.slate600,
-                      onTap: () => controller.switchTab(1),
-                    ),
-                  ),
-                  Expanded(
-                    child: _ConsoleTabButton(
-                      label: 'Documentary Evidence (PDF)',
-                      badge: 'Multimodal • SHA-256',
-                      tooltip: 'Field technician maintenance records and work orders with PDF text extraction and cryptographic SHA-256 fingerprinting.',
-                      icon: Icons.picture_as_pdf_rounded,
-                      isSelected: activeTab == 2,
-                      activeColor: AppColors.sensorTemp,
-                      onTap: () => controller.switchTab(2),
-                    ),
-                  ),
-                  */
-                ],
+              child: const _ConsoleTabButton(
+                label: '17-Sensor Hydraulic Rig Stream',
+                badge: 'PRIMARY RIG • 100 Hz (43,680 SAMPLES / CYCLE)',
+                tooltip: 'Discrete 60-second machine cycles from UCI Hydraulic Test Bench across 17 synchronized sensors (PS1..PS6, FS1..FS2, TS1..TS4, etc.).',
+                icon: Icons.speed_rounded,
+                isSelected: true,
+                activeColor: AppColors.primary,
               ),
             ),
 
@@ -180,18 +237,80 @@ class EvidenceConsoleScreen extends StatelessWidget {
               // Only 17-Sensor Hydraulic Rig Telemetry is active
               Widget rightColumn;
               if (latestTelemetry != null) {
-                rightColumn = Column(
-                  children: [
-                    LiveForensicCard(evidence: latestTelemetry),
-                    const SizedBox(height: AppSpacing.lg),
-                    TelemetryWaveformChart(
-                      cycleId: controller.cycleId.value,
-                      isSevereLeak: controller.cycleId.value >= 211,
-                      evidence: latestTelemetry,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    CanonicalJsonViewer(data: latestTelemetry.canonicalData),
-                  ],
+                final selectedTab = controller.inspectionTab.value;
+                rightColumn = Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderLight),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Encapsulated Header Bar: Verdict + Key Metrics + Retest
+                      _InspectionHeader(
+                        evidence: latestTelemetry,
+                        cycleId: controller.cycleId.value,
+                        onRetest: controller.resetRetestSession,
+                      ),
+                      const Divider(height: 1),
+
+                      // Segmented Inspection Tabs
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                        color: AppColors.bgLight,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _InspectionSegmentButton(
+                                label: 'Waveforms & Dynamics',
+                                icon: Icons.show_chart_rounded,
+                                isSelected: selectedTab == 0,
+                                onTap: () => controller.setInspectionTab(0),
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              _InspectionSegmentButton(
+                                label: 'Cryptographic Ledger & Audit',
+                                icon: Icons.verified_user_rounded,
+                                isSelected: selectedTab == 1,
+                                onTap: () => controller.setInspectionTab(1),
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              _InspectionSegmentButton(
+                                label: 'Canonical Observation JSON',
+                                icon: Icons.code_rounded,
+                                isSelected: selectedTab == 2,
+                                onTap: () => controller.setInspectionTab(2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const Divider(height: 1),
+
+                      // Encapsulated Content Body
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: selectedTab == 0
+                            ? TelemetryWaveformChart(
+                                cycleId: controller.cycleId.value,
+                                isSevereLeak: controller.cycleId.value >= 211,
+                                evidence: latestTelemetry,
+                              )
+                            : (selectedTab == 1
+                                ? LiveForensicCard(evidence: latestTelemetry)
+                                : CanonicalJsonViewer(data: latestTelemetry.canonicalData)),
+                      ),
+                    ],
+                  ),
                 );
               } else {
                 rightColumn = _AwaitingEvidenceCard(
@@ -248,6 +367,135 @@ class EvidenceConsoleScreen extends StatelessWidget {
   }
 }
 
+class _InspectionHeader extends StatelessWidget {
+  final EvidenceItemModel evidence;
+  final int cycleId;
+  final VoidCallback onRetest;
+
+  const _InspectionHeader({
+    required this.evidence,
+    required this.cycleId,
+    required this.onRetest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isNominal = evidence.qualityFlag == 'NOMINAL';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: isNominal ? AppColors.success.withValues(alpha: 0.12) : AppColors.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isNominal ? AppColors.success : AppColors.warning,
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isNominal ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                  size: 16,
+                  color: isNominal ? AppColors.success : AppColors.warning,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  isNominal ? 'NOMINAL BASELINE (HEALTHY)' : 'DEGRADED LEAK DETECTED',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isNominal ? AppColors.success : AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Text(
+            'Active Cycle #$cycleId',
+            style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
+          ),
+          const Spacer(),
+          // Quick Retest button
+          OutlinedButton.icon(
+            onPressed: onRetest,
+            icon: const Icon(Icons.restart_alt_rounded, size: 15),
+            label: const Text('Retest Cycle'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+              textStyle: AppTextStyles.labelCaps.copyWith(fontSize: 11),
+              foregroundColor: AppColors.slate900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InspectionSegmentButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _InspectionSegmentButton({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: isSelected ? Border.all(color: AppColors.borderLight) : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? AppColors.primary : AppColors.slate600,
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? AppColors.slate900 : AppColors.slate600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ConsoleTabButton extends StatelessWidget {
   final String label;
   final String badge;
@@ -255,7 +503,6 @@ class _ConsoleTabButton extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final Color activeColor;
-  final VoidCallback onTap;
 
   const _ConsoleTabButton({
     required this.label,
@@ -264,7 +511,6 @@ class _ConsoleTabButton extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     required this.activeColor,
-    required this.onTap,
   });
 
   @override
@@ -272,11 +518,7 @@ class _ConsoleTabButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 250),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        hoverColor: activeColor.withValues(alpha: 0.08),
-        child: Container(
+      child: Container(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.slate900 : Colors.transparent,
@@ -318,8 +560,7 @@ class _ConsoleTabButton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -466,10 +707,21 @@ class _EvidenceHistoryTable extends StatelessWidget {
                     Text('Forensic Evidence Ledger (Audit Trail)', style: AppTextStyles.headingSmall),
                   ],
                 ),
-                Obx(() => Text(
-                      '${controller.evidenceHistory.where((e) => e.isTelemetry).length} Telemetry Cycles',
-                      style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondary),
-                    )),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Obx(() => Text(
+                          '${controller.evidenceHistory.where((e) => e.isTelemetry).length} Telemetry Cycles',
+                          style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondary),
+                        )),
+                    const SizedBox(width: AppSpacing.xs),
+                    IconButton(
+                      icon: const Icon(Icons.sync_rounded, size: 16, color: AppColors.slate600),
+                      tooltip: 'Refresh Ledger from Supabase',
+                      onPressed: controller.refreshLedger,
+                    ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),

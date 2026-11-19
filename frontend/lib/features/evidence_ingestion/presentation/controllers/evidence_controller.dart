@@ -24,6 +24,13 @@ class EvidenceController extends GetxController {
   // Active view tab: 0 = Telemetry Rig Stream, 1 = CSV Ingestion, 2 = PDF Upload
   final activeTab = 0.obs;
 
+  // ── Encapsulated Inspection Tab: 0 = Waveform, 1 = Forensic Ledger, 2 = Canonical JSON
+  final inspectionTab = 0.obs;
+
+  void setInspectionTab(int index) {
+    inspectionTab.value = index;
+  }
+
   // Selected Tenancy
   final selectedTenant = AppConstants.defaultTenantId.obs;
   final selectedAsset = AppConstants.defaultAssetId.obs;
@@ -202,6 +209,46 @@ class EvidenceController extends GetxController {
         ingestTelemetryCycle();
       }
     });
+  }
+
+  /// Reset current session to baseline healthy state for a fresh cycle retest
+  void resetRetestSession() {
+    cancelLiveStream();
+    cycleId.value = 1;
+    selectedPreset.value = 'CYCLE_1';
+    cycleTextController.text = '1';
+    cycleError.value = null;
+    streamElapsedSeconds.value = 0;
+    currentLivePressure.value = 156.25;
+    currentLiveFlow.value = 7.84;
+    currentLivePhase.value = 'IDLE';
+    latestTelemetryEvidence.value = null;
+    isZipImportMode.value = false;
+    clearSelectedZip();
+    errorMessage.value = null;
+    inspectionTab.value = 0;
+    loadTimeline();
+    Get.snackbar(
+      'Session Reset',
+      'Ready for fresh retest. Active Rig: hydraulic_rig_01.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: const Color(0xFF0F172A),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  /// Manually refresh evidence timeline ledger from backend
+  Future<void> refreshLedger() async {
+    await loadTimeline();
+    Get.snackbar(
+      'Ledger Refreshed',
+      'Synchronized latest telemetry cycles from Supabase ledger.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: const Color(0xFF0F172A),
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
   }
 
   void cancelLiveStream() {

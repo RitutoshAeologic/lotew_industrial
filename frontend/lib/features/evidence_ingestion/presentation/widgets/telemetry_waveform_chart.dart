@@ -104,7 +104,13 @@ class TelemetryWaveformChart extends StatelessWidget {
                   children: [
                     const Icon(Icons.show_chart_rounded, size: 20, color: AppColors.primary),
                     const SizedBox(width: AppSpacing.sm),
-                    Text('60-Second Multi-Rate Operational Waveform (Cycle #$cycleId)', style: AppTextStyles.headingSmall),
+                    Flexible(
+                      child: Text(
+                        '60-Second Operational Waveform (Cycle #$cycleId)',
+                        style: AppTextStyles.headingSmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
                 Row(
