@@ -223,6 +223,18 @@ class DatabaseService:
             except Exception:
                 pass
 
+        canonical_raw = row.get("canonical_data") or {}
+        if isinstance(canonical_raw, dict):
+            # Enforce standardized canonical key order (reversing PostgreSQL JSONB arbitrary length sorting)
+            canonical_ordered = {}
+            for k in ["schema", "tenant_id", "source", "asset", "timestamps", "measurements", "metadata"]:
+                if k in canonical_raw:
+                    canonical_ordered[k] = canonical_raw[k]
+            for k, v in canonical_raw.items():
+                if k not in canonical_ordered:
+                    canonical_ordered[k] = v
+            canonical_raw = canonical_ordered
+
         return EvidenceItem(
             id=str(row["id"]),
             tenant_id=str(row.get("tenant_id", "hydraulic_lab")),
@@ -240,5 +252,5 @@ class DatabaseService:
             processing_latency_ms=row.get("processing_latency_ms"),
             quality_flag=str(row.get("quality_flag", "NOMINAL")),
             extracted_text=row.get("extracted_text"),
-            canonical_data=row.get("canonical_data") or {},
+            canonical_data=canonical_raw,
         )

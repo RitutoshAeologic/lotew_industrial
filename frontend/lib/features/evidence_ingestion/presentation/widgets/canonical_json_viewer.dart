@@ -25,10 +25,73 @@ class _CanonicalJsonViewerState extends State<CanonicalJsonViewer> {
     super.dispose();
   }
 
+  static dynamic _canonicalSort(dynamic value) {
+    if (value is List) {
+      return value.map(_canonicalSort).toList();
+    }
+    if (value is Map) {
+      const topLevelOrder = [
+        'schema',
+        'tenant_id',
+        'source',
+        'asset',
+        'timestamps',
+        'measurements',
+        'metadata',
+      ];
+      const timestampsOrder = [
+        'event_time',
+        'ingestion_time',
+        'available_time',
+        'ingestion_latency_ms',
+        'processing_latency_ms',
+      ];
+      const statsOrder = [
+        'median',
+        'mad',
+        'min',
+        'max',
+        'rate_hz',
+        'unit',
+        'samples_count',
+      ];
+
+      final keys = value.keys.map((k) => k.toString()).toList();
+
+      List<String>? priority;
+      if (topLevelOrder.any(keys.contains)) {
+        priority = topLevelOrder;
+      } else if (timestampsOrder.any(keys.contains)) {
+        priority = timestampsOrder;
+      } else if (statsOrder.any(keys.contains)) {
+        priority = statsOrder;
+      }
+
+      if (priority != null) {
+        keys.sort((a, b) {
+          final idxA = priority!.indexOf(a);
+          final idxB = priority!.indexOf(b);
+          if (idxA != -1 && idxB != -1) return idxA.compareTo(idxB);
+          if (idxA != -1) return -1;
+          if (idxB != -1) return 1;
+          return a.compareTo(b);
+        });
+      }
+
+      final Map<String, dynamic> sortedMap = {};
+      for (final k in keys) {
+        sortedMap[k] = _canonicalSort(value[k]);
+      }
+      return sortedMap;
+    }
+    return value;
+  }
+
   @override
   Widget build(BuildContext context) {
     const encoder = JsonEncoder.withIndent('  ');
-    final formatted = encoder.convert(widget.data);
+    final sortedData = _canonicalSort(widget.data);
+    final formatted = encoder.convert(sortedData);
 
     // Filter lines if search query is provided
     String displayContent = formatted;

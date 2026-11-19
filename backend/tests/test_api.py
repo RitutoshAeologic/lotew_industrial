@@ -140,11 +140,11 @@ def test_upload_rig_zip_package(client: TestClient):
     import io
     import zipfile
 
-    # Build a test zip containing PS1.txt and FS1.txt
+    # Build a test zip containing isolated test sensor files so real dataset is never overwritten
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as z:
-        z.writestr("PS1.txt", "151.2\t151.3\t151.4\n")
-        z.writestr("FS1.txt", "7.8\t7.9\t8.0\n")
+        z.writestr("TEST_PS1.txt", "151.2\t151.3\t151.4\n")
+        z.writestr("TEST_FS1.txt", "7.8\t7.9\t8.0\n")
 
     files = {
         "file": ("raw_hydraulic_package.zip", zip_buffer.getvalue(), "application/zip")
@@ -163,7 +163,7 @@ def test_upload_rig_zip_package(client: TestClient):
     res = response.json()
     assert res["status"] == "SUCCESS"
     assert res["extracted_count"] == 2
-    assert "PS1.txt" in res["sensor_files"]
+    assert "TEST_PS1.txt" in res["sensor_files"]
 
 
 def test_timeline_retrieval(client: TestClient):
