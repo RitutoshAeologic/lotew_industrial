@@ -8,9 +8,9 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 import '../controllers/evidence_controller.dart';
 import '../widgets/canonical_json_viewer.dart';
-import '../widgets/csv_upload_card.dart';
+// import '../widgets/csv_upload_card.dart';
 import '../widgets/live_forensic_card.dart';
-import '../widgets/pdf_upload_card.dart';
+// import '../widgets/pdf_upload_card.dart';
 import '../widgets/telemetry_simulator_card.dart';
 import '../widgets/telemetry_waveform_chart.dart';
 
@@ -121,151 +121,107 @@ class EvidenceConsoleScreen extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.lg),
 
-            // Ingestion Mode Tab Switcher (3 Modalities)
-            Obx(() {
-              final activeTab = controller.activeTab.value;
-              return Container(
-                decoration: BoxDecoration(
-                  color: AppColors.bgLight,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.borderLight),
-                ),
-                padding: const EdgeInsets.all(4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _ConsoleTabButton(
-                        label: '17-Sensor Hydraulic Rig Stream',
-                        badge: 'PRIMARY DEMO • 100 Hz',
-                        tooltip: 'Discrete 60-second machine cycles from UCI Hydraulic Test Bench across 17 synchronized sensors (PS1..PS6, FS1..FS2, TS1..TS4, etc.).',
-                        icon: Icons.speed_rounded,
-                        isSelected: activeTab == 0,
-                        activeColor: AppColors.primary,
-                        onTap: () => controller.switchTab(0),
-                      ),
+            // Ingestion Mode (Focused strictly on 17-Sensor Hydraulic Rig)
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgLight,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              padding: const EdgeInsets.all(4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ConsoleTabButton(
+                      label: '17-Sensor Hydraulic Rig Stream',
+                      badge: 'PRIMARY DEMO • 100 Hz',
+                      tooltip: 'Discrete 60-second machine cycles from UCI Hydraulic Test Bench across 17 synchronized sensors (PS1..PS6, FS1..FS2, TS1..TS4, etc.).',
+                      icon: Icons.speed_rounded,
+                      isSelected: true,
+                      activeColor: AppColors.primary,
+                      onTap: () {},
                     ),
-                    Expanded(
-                      child: _ConsoleTabButton(
-                        label: 'Continuous Fleet Logs (CSV)',
-                        badge: 'Roadmap • MetroPT / SCANIA',
-                        tooltip: 'Secondary continuous multi-sensor CSV streams for Metro do Porto train compressor & SCANIA heavy fleet (Phase 2 Roadmap).',
-                        icon: Icons.table_chart_rounded,
-                        isSelected: activeTab == 1,
-                        activeColor: AppColors.slate600,
-                        onTap: () => controller.switchTab(1),
-                      ),
+                  ),
+                  /*
+                  // CSV and PDF tabs temporarily commented out for focused QA experience
+                  Expanded(
+                    child: _ConsoleTabButton(
+                      label: 'Continuous Fleet Logs (CSV)',
+                      badge: 'Roadmap • MetroPT / SCANIA',
+                      tooltip: 'Secondary continuous multi-sensor CSV streams for Metro do Porto train compressor & SCANIA heavy fleet (Phase 2 Roadmap).',
+                      icon: Icons.table_chart_rounded,
+                      isSelected: activeTab == 1,
+                      activeColor: AppColors.slate600,
+                      onTap: () => controller.switchTab(1),
                     ),
-                    Expanded(
-                      child: _ConsoleTabButton(
-                        label: 'Documentary Evidence (PDF)',
-                        badge: 'Multimodal • SHA-256',
-                        tooltip: 'Field technician maintenance records and work orders with PDF text extraction and cryptographic SHA-256 fingerprinting.',
-                        icon: Icons.picture_as_pdf_rounded,
-                        isSelected: activeTab == 2,
-                        activeColor: AppColors.sensorTemp,
-                        onTap: () => controller.switchTab(2),
-                      ),
+                  ),
+                  Expanded(
+                    child: _ConsoleTabButton(
+                      label: 'Documentary Evidence (PDF)',
+                      badge: 'Multimodal • SHA-256',
+                      tooltip: 'Field technician maintenance records and work orders with PDF text extraction and cryptographic SHA-256 fingerprinting.',
+                      icon: Icons.picture_as_pdf_rounded,
+                      isSelected: activeTab == 2,
+                      activeColor: AppColors.sensorTemp,
+                      onTap: () => controller.switchTab(2),
                     ),
-                  ],
-                ),
-              );
-            }),
+                  ),
+                  */
+                ],
+              ),
+            ),
 
             const SizedBox(height: AppSpacing.lg),
 
             // Responsive Layout: Ingestion Card on Left, Live Inspector on Right
             Obx(() {
-              final activeTab = controller.activeTab.value;
               final latestTelemetry = controller.latestTelemetryEvidence.value;
-              final latestCsv = controller.latestCsvEvidence.value;
-              final latestPdf = controller.latestPdfEvidence.value;
 
-              Widget leftColumn;
-              if (activeTab == 0) {
-                leftColumn = const TelemetrySimulatorCard();
-              } else if (activeTab == 1) {
-                leftColumn = const CsvUploadCard();
-              } else {
-                leftColumn = const PdfUploadCard();
-              }
-
+              // Only 17-Sensor Hydraulic Rig Telemetry is active
               Widget rightColumn;
-              if (activeTab == 0) {
-                // Telemetry Inspection
-                if (latestTelemetry != null) {
-                  rightColumn = Column(
-                    children: [
-                      LiveForensicCard(evidence: latestTelemetry),
-                      const SizedBox(height: AppSpacing.lg),
-                      TelemetryWaveformChart(
-                        cycleId: controller.cycleId.value,
-                        isSevereLeak: controller.cycleId.value >= 211,
-                        evidence: latestTelemetry,
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      CanonicalJsonViewer(data: latestTelemetry.canonicalData),
-                    ],
-                  );
-                } else {
-                  rightColumn = _AwaitingEvidenceCard(
-                    title: 'No Telemetry Ingested in Current Session',
-                    description: 'Select Cycle #1 (Baseline) or Cycle #211 (Severe Leakage) on the left and click "Start Live 60s Stream" or "Instant Batch".',
-                    actionLabel: 'Quick Ingest Cycle 1',
-                    icon: Icons.speed_rounded,
-                    onAction: () {
-                      controller.setCyclePreset(1);
-                      controller.ingestTelemetryCycle();
-                    },
-                  );
-                }
-              } else if (activeTab == 1) {
-                // CSV Inspection
-                if (latestCsv != null) {
-                  rightColumn = Column(
-                    children: [
-                      LiveForensicCard(evidence: latestCsv),
-                      const SizedBox(height: AppSpacing.lg),
-                      CanonicalJsonViewer(data: latestCsv.canonicalData),
-                    ],
-                  );
-                } else {
-                  rightColumn = _AwaitingEvidenceCard(
-                    title: 'No CSV Telemetry Ingested Yet',
-                    description: 'Choose a continuous CSV sensor log (e.g. Metro do Porto compressor or SCANIA fleet) on the left to extract statistical channels and compress to Parquet.',
-                    actionLabel: 'Browse CSV File',
-                    icon: Icons.table_chart_rounded,
-                    onAction: controller.pickCsvFile,
-                  );
-                }
+              if (latestTelemetry != null) {
+                rightColumn = Column(
+                  children: [
+                    LiveForensicCard(evidence: latestTelemetry),
+                    const SizedBox(height: AppSpacing.lg),
+                    TelemetryWaveformChart(
+                      cycleId: controller.cycleId.value,
+                      isSevereLeak: controller.cycleId.value >= 211,
+                      evidence: latestTelemetry,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    CanonicalJsonViewer(data: latestTelemetry.canonicalData),
+                  ],
+                );
               } else {
-                // PDF Inspection
-                if (latestPdf != null) {
-                  rightColumn = Column(
-                    children: [
-                      LiveForensicCard(evidence: latestPdf),
-                      const SizedBox(height: AppSpacing.lg),
-                      if (latestPdf.extractedText != null)
-                        _ExtractedTextCard(text: latestPdf.extractedText!),
-                      const SizedBox(height: AppSpacing.lg),
-                      CanonicalJsonViewer(data: latestPdf.canonicalData),
-                    ],
-                  );
-                } else {
-                  rightColumn = _AwaitingEvidenceCard(
-                    title: 'No PDF Documentary Log Uploaded',
-                    description: 'Upload a technician inspection report or work order PDF on the left to extract text and generate cryptographic SHA-256 audit fingerprint.',
-                    actionLabel: 'Select PDF File',
-                    icon: Icons.picture_as_pdf_rounded,
-                    onAction: controller.pickPdfFile,
-                  );
-                }
+                rightColumn = _AwaitingEvidenceCard(
+                  title: 'No Telemetry Ingested in Current Session',
+                  description: 'Select Cycle #1 (Baseline) or Cycle #211 (Severe Leakage) on the left and click "Start Live 60s Stream" or "Instant Batch".',
+                  actionLabel: 'Quick Ingest Cycle 1',
+                  icon: Icons.speed_rounded,
+                  onAction: () {
+                    controller.setCyclePreset(1);
+                    controller.ingestTelemetryCycle();
+                  },
+                );
               }
+
+              /*
+              // CSV and PDF inspection cards temporarily commented out
+              if (activeTab == 1) {
+                // CSV Inspection
+                if (latestCsv != null) { ... }
+              } else if (activeTab == 2) {
+                // PDF Inspection
+                if (latestPdf != null) { ... }
+              }
+              */
 
               if (rc.isDesktop) {
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(flex: 5, child: leftColumn),
+                    const Expanded(flex: 5, child: TelemetrySimulatorCard()),
                     const SizedBox(width: AppSpacing.lg),
                     Expanded(flex: 6, child: rightColumn),
                   ],
@@ -273,7 +229,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
               } else {
                 return Column(
                   children: [
-                    leftColumn,
+                    const TelemetrySimulatorCard(),
                     const SizedBox(height: AppSpacing.lg),
                     rightColumn,
                   ],
@@ -433,6 +389,7 @@ class _AwaitingEvidenceCard extends StatelessWidget {
   }
 }
 
+/*
 class _ExtractedTextCard extends StatelessWidget {
   final String text;
 
@@ -479,6 +436,7 @@ class _ExtractedTextCard extends StatelessWidget {
     );
   }
 }
+*/
 
 class _EvidenceHistoryTable extends StatelessWidget {
   const _EvidenceHistoryTable();
@@ -509,7 +467,7 @@ class _EvidenceHistoryTable extends StatelessWidget {
                   ],
                 ),
                 Obx(() => Text(
-                      '${controller.evidenceHistory.length} Total Records',
+                      '${controller.evidenceHistory.where((e) => e.isTelemetry).length} Telemetry Cycles',
                       style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondary),
                     )),
               ],
@@ -518,7 +476,7 @@ class _EvidenceHistoryTable extends StatelessWidget {
             const Divider(),
             const SizedBox(height: AppSpacing.md),
             Obx(() {
-              final list = controller.evidenceHistory;
+              final list = controller.evidenceHistory.where((e) => e.isTelemetry).toList();
               if (list.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
