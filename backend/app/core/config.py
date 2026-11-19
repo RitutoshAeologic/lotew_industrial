@@ -84,18 +84,24 @@ class Settings(BaseSettings):
             if p.exists():
                 return p
 
-        # Check candidate locations
+        # Priority 1: Local industrial rig mounted data directory
+        backend_root = Path(__file__).resolve().parent.parent.parent
+        local_hydraulic = backend_root / "data" / "hydraulic"
+        if local_hydraulic.exists() and (local_hydraulic / "PS1.txt").exists():
+            return local_hydraulic
+
+        # Priority 2: Fallback candidates
         candidates = [
+            Path("/Users/ritutosh/StudioProjects/lotew_backend/data/hydraulic"),
+            Path.cwd() / "data" / "hydraulic",
             Path(__file__).resolve().parents[4] / "data" / "hydraulic",
             Path(__file__).resolve().parents[3] / "data" / "hydraulic",
-            Path.cwd() / "data" / "hydraulic",
-            Path("/Users/ritutosh/StudioProjects/lotew_backend/data/hydraulic"),
         ]
         for candidate in candidates:
             if candidate.exists() and (candidate / "PS1.txt").exists():
                 return candidate
 
-        return Path("data/hydraulic")
+        return local_hydraulic
 
 
 @lru_cache()

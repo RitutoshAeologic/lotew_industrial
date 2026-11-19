@@ -212,12 +212,16 @@ class EvidenceService:
         try:
             with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
                 all_files = z.namelist()
-                sensor_files = [f for f in all_files if f.endswith(".txt") and not f.startswith("__MACOSX")]
+                sensor_files = [
+                    f for f in all_files
+                    if f.endswith(".txt") and not f.startswith("__MACOSX") and not Path(f).name.startswith(".")
+                ]
 
                 if not sensor_files:
                     raise ValueError("ZIP archive contains no .txt sensor files.")
 
-                dest_dir = self.settings.get_hydraulic_data_path()
+                backend_root = Path(__file__).resolve().parent.parent.parent
+                dest_dir = backend_root / "data" / "hydraulic"
                 dest_dir.mkdir(parents=True, exist_ok=True)
 
                 extracted_names = []
@@ -226,6 +230,13 @@ class EvidenceService:
                     content = z.read(f_name)
                     (dest_dir / clean_name).write_bytes(content)
                     extracted_names.append(clean_name)
+
+                # Clear linecache so Python immediately re-reads newly extracted lines
+                import linecache
+                linecache.clearcache()
+
+                # Hot-reload adapter data directory
+                self.hydraulic_adapter.data_dir = dest_dir
 
                 # Tiered storage: backup the raw ZIP archive in Supabase Storage
                 zip_storage_path = f"datasets/{tenant_id}/{asset_id}/{raw_sha256[:16]}_{file_name}"
