@@ -115,7 +115,7 @@ class DatabaseService:
                 "event_time": item.event_time.isoformat() if item.event_time else None,
                 "ingestion_time": item.ingestion_time.isoformat(),
                 "available_time": item.available_time.isoformat(),
-                "ingestion_latency_ms": item.ingestion_latency_ms,
+                "ingestion_latency_ms": min(999999999.0, item.ingestion_latency_ms) if item.ingestion_latency_ms is not None else None,
                 "processing_latency_ms": item.processing_latency_ms,
                 "quality_flag": item.quality_flag,
                 "extracted_text": item.extracted_text,
