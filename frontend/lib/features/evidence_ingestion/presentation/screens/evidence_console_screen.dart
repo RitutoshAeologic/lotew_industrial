@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/responsive/responsive_controller.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 import '../controllers/evidence_controller.dart';
 import '../widgets/canonical_json_viewer.dart';
@@ -559,7 +560,10 @@ class _EvidenceHistoryTable extends StatelessWidget {
                         DataCell(Text(isPdf ? (item.componentId ?? 'system') : 'Cycle #${item.cycleId}')),
                         DataCell(Text('${item.rawFileSha256.substring(0, 16)}...', style: AppTextStyles.monoSmall)),
                         DataCell(Text(item.eventTime != null ? item.eventTime!.toIso8601String().substring(0, 19) : '-')),
-                        DataCell(Text('${item.processingLatencyMs?.toStringAsFixed(1) ?? "35"} ms', style: AppTextStyles.monoSmall)),
+                        DataCell(Tooltip(
+                          message: item.processingLatencyMs != null ? '${item.processingLatencyMs!.toStringAsFixed(3)} ms' : 'N/A',
+                          child: Text(AppFormatters.formatDurationMs(item.processingLatencyMs), style: AppTextStyles.monoSmall),
+                        )),
                         DataCell(Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(

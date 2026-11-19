@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../domain/models/evidence_item_model.dart';
 
 class LiveForensicCard extends StatelessWidget {
@@ -299,28 +300,32 @@ class _LatencyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.bgLight,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: AppTextStyles.labelCaps),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            ms != null ? '${ms!.toStringAsFixed(2)} ms' : 'N/A',
-            style: AppTextStyles.monoLarge.copyWith(
-              color: AppColors.primaryDark,
-              fontSize: 20,
+    return Tooltip(
+      message: ms != null ? 'Exact: ${ms!.toStringAsFixed(3)} ms' : 'Not recorded',
+      waitDuration: const Duration(milliseconds: 200),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.bgLight,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: AppTextStyles.labelCaps),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              AppFormatters.formatDurationMs(ms),
+              style: AppTextStyles.monoLarge.copyWith(
+                color: AppColors.primaryDark,
+                fontSize: 20,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(description, style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
-        ],
+            const SizedBox(height: 2),
+            Text(description, style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+          ],
+        ),
       ),
     );
   }
