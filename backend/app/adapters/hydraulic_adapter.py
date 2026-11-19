@@ -165,7 +165,10 @@ class HydraulicRigAdapter(BaseIndustryAdapter):
         t_end = time.perf_counter()
 
         processing_latency_ms = round((t_end - t_start) * 1000.0, 3)
-        ingestion_latency_ms = round(max(0.0, (ingestion_time - event_time).total_seconds() * 1000.0), 3)
+        # For historical backfill (anchor epoch in 2024 vs current year), elapsed delta > 24h.
+        # Set ingestion_latency_ms = 0.0 for historical replay to avoid NUMERIC(12, 3) overflow.
+        delta_sec = (ingestion_time - event_time).total_seconds()
+        ingestion_latency_ms = round(delta_sec * 1000.0, 3) if 0 <= delta_sec <= 86400 else 0.0
 
         timestamps = TimestampsBlock(
             event_time=event_time,
