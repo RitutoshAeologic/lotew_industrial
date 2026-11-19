@@ -70,69 +70,79 @@ class TelemetrySimulatorCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        onTap: () => controller.isZipImportMode.value = false,
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: !isZip ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: !isZip
-                                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 1))]
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.tune_rounded, size: 16, color: !isZip ? AppColors.primary : AppColors.textSecondary),
-                              const SizedBox(width: AppSpacing.xs),
-                              Flexible(
-                                child: Text(
-                                  'Cycle Simulator (60s Stream)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: !isZip ? FontWeight.bold : FontWeight.w500,
-                                    color: !isZip ? AppColors.primary : AppColors.textSecondary,
+                      child: Tooltip(
+                        message: 'Operational Cycle Simulator: Replay and audit 60-second machine cycles (1 to 2,205) with live streaming gauges and condition presets.',
+                        waitDuration: const Duration(milliseconds: 250),
+                        child: InkWell(
+                          onTap: () => controller.isZipImportMode.value = false,
+                          borderRadius: BorderRadius.circular(6),
+                          hoverColor: AppColors.primary.withValues(alpha: 0.08),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: !isZip ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: !isZip
+                                  ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 1))]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.tune_rounded, size: 16, color: !isZip ? AppColors.primary : AppColors.textSecondary),
+                                const SizedBox(width: AppSpacing.xs),
+                                Flexible(
+                                  child: Text(
+                                    'Cycle Simulator (60s Stream)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: !isZip ? FontWeight.bold : FontWeight.w500,
+                                      color: !isZip ? AppColors.primary : AppColors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                     Expanded(
-                      child: InkWell(
-                        onTap: () => controller.isZipImportMode.value = true,
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isZip ? Colors.white : Colors.transparent,
-                            borderRadius: BorderRadius.circular(6),
-                            boxShadow: isZip
-                                ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 1))]
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.archive_rounded, size: 16, color: isZip ? AppColors.primary : AppColors.textSecondary),
-                              const SizedBox(width: AppSpacing.xs),
-                              Flexible(
-                                child: Text(
-                                  'Import Raw 17-Sensor ZIP',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: isZip ? FontWeight.bold : FontWeight.w500,
-                                    color: isZip ? AppColors.primary : AppColors.textSecondary,
+                      child: Tooltip(
+                        message: 'Approach B (UI Batch Upload): Directly stream a raw hydraulic_cycle_raw.zip archive to FastAPI without browser-side parsing or memory leaks.',
+                        waitDuration: const Duration(milliseconds: 250),
+                        child: InkWell(
+                          onTap: () => controller.isZipImportMode.value = true,
+                          borderRadius: BorderRadius.circular(6),
+                          hoverColor: AppColors.primary.withValues(alpha: 0.08),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isZip ? Colors.white : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: isZip
+                                  ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 1))]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.archive_rounded, size: 16, color: isZip ? AppColors.primary : AppColors.textSecondary),
+                                const SizedBox(width: AppSpacing.xs),
+                                Flexible(
+                                  child: Text(
+                                    'Import Raw 17-Sensor ZIP',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isZip ? FontWeight.bold : FontWeight.w500,
+                                      color: isZip ? AppColors.primary : AppColors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -161,18 +171,21 @@ class TelemetrySimulatorCard extends StatelessWidget {
                         count: '7 Sensors',
                         names: 'PS1–PS6, EPS1',
                         color: AppColors.sensorPressure,
+                        description: 'High-Frequency Arrays (6,000 pts/cycle)\nSensors: PS1..PS6 (Pressure transducers) & EPS1 (Motor electrical power). Detects millisecond pressure spikes and valve transitions.',
                       ),
                       _RateBadge(
                         rate: '10 Hz (100 ms)',
                         count: '2 Sensors',
                         names: 'FS1, FS2',
                         color: AppColors.sensorFlow,
+                        description: 'Medium-Frequency Arrays (600 pts/cycle)\nSensors: FS1 (Primary hydraulic circuit flow) & FS2 (Cooling loop flow). Measures system flow rate and internal fluid leakage.',
                       ),
                       _RateBadge(
                         rate: '1 Hz (1,000 ms)',
                         count: '8 Sensors',
                         names: 'TS1–TS4, VS1, CE, CP, SE',
                         color: AppColors.sensorTemp,
+                        description: 'Low-Frequency Condition Arrays (60 pts/cycle)\nSensors: TS1..TS4 (Temperatures), VS1 (Vibration), CE (Cooler efficiency), CP (Cooling power), SE (Efficiency factor).',
                       ),
                     ],
                   ),
@@ -187,38 +200,43 @@ class TelemetrySimulatorCard extends StatelessWidget {
                       Expanded(
                         child: Obx(() {
                           final isC1 = controller.selectedPreset.value == 'CYCLE_1';
-                          return InkWell(
-                            onTap: () => controller.setCyclePreset(1),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.all(AppSpacing.sm),
-                              decoration: BoxDecoration(
-                                color: isC1 ? AppColors.success.withValues(alpha: 0.12) : AppColors.bgLight,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isC1 ? AppColors.success : AppColors.borderLight,
-                                  width: isC1 ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.check_circle_outline_rounded, size: 16, color: isC1 ? AppColors.success : AppColors.slate600),
-                                      const SizedBox(width: AppSpacing.xs),
-                                      Text(
-                                        'Cycle 1: Baseline',
-                                        style: AppTextStyles.headingSmall.copyWith(
-                                          fontSize: 13,
-                                          color: isC1 ? AppColors.success : AppColors.textPrimary,
-                                        ),
-                                      ),
-                                    ],
+                          return Tooltip(
+                            message: 'Cycle 1 (Healthy Baseline)\nCommissioning state: 100% cooler efficiency, zero valve lag, normal system pressure peak at ~156 bar.',
+                            waitDuration: const Duration(milliseconds: 200),
+                            child: InkWell(
+                              onTap: () => controller.setCyclePreset(1),
+                              borderRadius: BorderRadius.circular(8),
+                              hoverColor: AppColors.success.withValues(alpha: 0.08),
+                              child: Container(
+                                padding: const EdgeInsets.all(AppSpacing.sm),
+                                decoration: BoxDecoration(
+                                  color: isC1 ? AppColors.success.withValues(alpha: 0.12) : AppColors.bgLight,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isC1 ? AppColors.success : AppColors.borderLight,
+                                    width: isC1 ? 1.5 : 1,
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text('Normal pressure (~156 bar), 0 leakage', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
-                                ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.check_circle_outline_rounded, size: 16, color: isC1 ? AppColors.success : AppColors.slate600),
+                                        const SizedBox(width: AppSpacing.xs),
+                                        Text(
+                                          'Cycle 1: Baseline',
+                                          style: AppTextStyles.headingSmall.copyWith(
+                                            fontSize: 13,
+                                            color: isC1 ? AppColors.success : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text('Normal pressure (~156 bar), 0 leakage', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -228,38 +246,43 @@ class TelemetrySimulatorCard extends StatelessWidget {
                       Expanded(
                         child: Obx(() {
                           final isC211 = controller.selectedPreset.value == 'CYCLE_211';
-                          return InkWell(
-                            onTap: () => controller.setCyclePreset(211),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.all(AppSpacing.sm),
-                              decoration: BoxDecoration(
-                                color: isC211 ? AppColors.verdictAct.withValues(alpha: 0.12) : AppColors.bgLight,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isC211 ? AppColors.verdictAct : AppColors.borderLight,
-                                  width: isC211 ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.warning_amber_rounded, size: 16, color: isC211 ? AppColors.verdictAct : AppColors.slate600),
-                                      const SizedBox(width: AppSpacing.xs),
-                                      Text(
-                                        'Cycle 211: Severe Leak',
-                                        style: AppTextStyles.headingSmall.copyWith(
-                                          fontSize: 13,
-                                          color: isC211 ? AppColors.verdictAct : AppColors.textPrimary,
-                                        ),
-                                      ),
-                                    ],
+                          return Tooltip(
+                            message: 'Cycle 211 (Severe Internal Leakage)\nCatastrophic failure: Severe internal piston leakage causing abrupt pressure collapse down to 110 bar.',
+                            waitDuration: const Duration(milliseconds: 200),
+                            child: InkWell(
+                              onTap: () => controller.setCyclePreset(211),
+                              borderRadius: BorderRadius.circular(8),
+                              hoverColor: AppColors.verdictAct.withValues(alpha: 0.08),
+                              child: Container(
+                                padding: const EdgeInsets.all(AppSpacing.sm),
+                                decoration: BoxDecoration(
+                                  color: isC211 ? AppColors.verdictAct.withValues(alpha: 0.12) : AppColors.bgLight,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isC211 ? AppColors.verdictAct : AppColors.borderLight,
+                                    width: isC211 ? 1.5 : 1,
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text('Abrupt pressure drop to 110 bar', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
-                                ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.warning_amber_rounded, size: 16, color: isC211 ? AppColors.verdictAct : AppColors.slate600),
+                                        const SizedBox(width: AppSpacing.xs),
+                                        Text(
+                                          'Cycle 211: Severe Leak',
+                                          style: AppTextStyles.headingSmall.copyWith(
+                                            fontSize: 13,
+                                            color: isC211 ? AppColors.verdictAct : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text('Abrupt pressure drop to 110 bar', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -280,14 +303,18 @@ class TelemetrySimulatorCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('SLIDER RANGE (1 TO 2,205 CYCLES)', style: AppTextStyles.labelCaps),
-                            Obx(() => Slider(
-                                  value: controller.cycleId.value.toDouble(),
-                                  min: 1,
-                                  max: 2205,
-                                  divisions: 2204,
-                                  activeColor: AppColors.primary,
-                                  onChanged: controller.onSliderChanged,
-                                )),
+                            Tooltip(
+                              message: 'Slide to select test bench cycle (1 = Jan 1, 2024; 2205 = End of wear testing)',
+                              waitDuration: const Duration(milliseconds: 300),
+                              child: Obx(() => Slider(
+                                    value: controller.cycleId.value.toDouble(),
+                                    min: 1,
+                                    max: 2205,
+                                    divisions: 2204,
+                                    activeColor: AppColors.primary,
+                                    onChanged: controller.onSliderChanged,
+                                  )),
+                            ),
                           ],
                         ),
                       ),
@@ -299,19 +326,23 @@ class TelemetrySimulatorCard extends StatelessWidget {
                           children: [
                             Text('DIRECT INPUT', style: AppTextStyles.labelCaps),
                             const SizedBox(height: AppSpacing.xs),
-                            Obx(() => TextFormField(
-                                  controller: controller.cycleTextController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                    hintText: '1..2205',
-                                    errorText: controller.cycleError.value,
-                                    errorMaxLines: 2,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  onChanged: controller.onCycleInputChanged,
-                                )),
+                            Tooltip(
+                              message: 'Type any valid integer cycle ID between 1 and 2,205',
+                              waitDuration: const Duration(milliseconds: 300),
+                              child: Obx(() => TextFormField(
+                                    controller: controller.cycleTextController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                                      hintText: '1..2205',
+                                      errorText: controller.cycleError.value,
+                                      errorMaxLines: 2,
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    onChanged: controller.onCycleInputChanged,
+                                  )),
+                            ),
                           ],
                         ),
                       ),
@@ -350,18 +381,26 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text('Speed: ', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
-                                    ChoiceChip(
-                                      label: const Text('1x Real (60s)', style: TextStyle(fontSize: 10)),
-                                      selected: controller.streamSpeedMultiplier.value == 1,
-                                      onSelected: (_) => controller.streamSpeedMultiplier.value = 1,
-                                      visualDensity: VisualDensity.compact,
+                                    Tooltip(
+                                      message: '1x Real Machine Speed: Replays the 60-second cycle in genuine real time (60s).',
+                                      waitDuration: const Duration(milliseconds: 200),
+                                      child: ChoiceChip(
+                                        label: const Text('1x Real (60s)', style: TextStyle(fontSize: 10)),
+                                        selected: controller.streamSpeedMultiplier.value == 1,
+                                        onSelected: (_) => controller.streamSpeedMultiplier.value = 1,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ),
                                     const SizedBox(width: 4),
-                                    ChoiceChip(
-                                      label: const Text('6x Demo (10s)', style: TextStyle(fontSize: 10)),
-                                      selected: controller.streamSpeedMultiplier.value == 6,
-                                      onSelected: (_) => controller.streamSpeedMultiplier.value = 6,
-                                      visualDensity: VisualDensity.compact,
+                                    Tooltip(
+                                      message: '6x Fast Demo Speed: Replays the full 60-second cycle in 10 seconds for rapid testing.',
+                                      waitDuration: const Duration(milliseconds: 200),
+                                      child: ChoiceChip(
+                                        label: const Text('6x Demo (10s)', style: TextStyle(fontSize: 10)),
+                                        selected: controller.streamSpeedMultiplier.value == 6,
+                                        onSelected: (_) => controller.streamSpeedMultiplier.value = 6,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ),
                                   ],
                                 )),
@@ -412,43 +451,57 @@ class TelemetrySimulatorCard extends StatelessWidget {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: AppColors.borderLight),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Text('LIVE PS1:', style: TextStyle(fontSize: 11, color: AppColors.slate600)),
-                                          Text(
-                                            '${controller.currentLivePressure.value.toStringAsFixed(1)} bar',
-                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.sensorPressure),
+                                    child: Tooltip(
+                                      message: 'PS1: Primary Circuit Pressure Transmitter (0 to 250 bar)\nSamples at 100 Hz (6,000 readings per cycle)',
+                                      waitDuration: const Duration(milliseconds: 200),
+                                      child: MouseRegion(
+                                        cursor: SystemMouseCursors.help,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: AppColors.borderLight),
                                           ),
-                                        ],
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              const Text('LIVE PS1:', style: TextStyle(fontSize: 11, color: AppColors.slate600)),
+                                              Text(
+                                                '${controller.currentLivePressure.value.toStringAsFixed(1)} bar',
+                                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.sensorPressure),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: AppSpacing.sm),
                                   Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: AppColors.borderLight),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Text('LIVE FS1:', style: TextStyle(fontSize: 11, color: AppColors.slate600)),
-                                          Text(
-                                            '${controller.currentLiveFlow.value.toStringAsFixed(1)} L/min',
-                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.sensorFlow),
+                                    child: Tooltip(
+                                      message: 'FS1: Primary Circuit Flow Transmitter (0 to 10 L/min)\nSamples at 10 Hz (600 readings per cycle)',
+                                      waitDuration: const Duration(milliseconds: 200),
+                                      child: MouseRegion(
+                                        cursor: SystemMouseCursors.help,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: AppColors.borderLight),
                                           ),
-                                        ],
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              const Text('LIVE FS1:', style: TextStyle(fontSize: 11, color: AppColors.slate600)),
+                                              Text(
+                                                '${controller.currentLiveFlow.value.toStringAsFixed(1)} L/min',
+                                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.sensorFlow),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -473,29 +526,35 @@ class TelemetrySimulatorCard extends StatelessWidget {
                       children: [
                         Expanded(
                           flex: 3,
-                          child: SizedBox(
-                            height: 48,
-                            child: ElevatedButton(
-                              onPressed: (isStreaming || isUploading)
-                                  ? (isStreaming ? controller.cancelLiveStream : null)
-                                  : controller.startLiveCycleStream,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isStreaming ? AppColors.verdictAct : AppColors.primaryDark,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(isStreaming ? Icons.stop_rounded : Icons.sensors_rounded, color: Colors.white, size: 20),
-                                  const SizedBox(width: AppSpacing.xs),
-                                  Flexible(
-                                    child: Text(
-                                      isStreaming ? 'Stop Stream' : 'Live 60s Stream (#$cycleNum)',
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                                      overflow: TextOverflow.ellipsis,
+                          child: Tooltip(
+                            message: isStreaming
+                                ? 'Click to halt machine stream execution'
+                                : 'Start 60-second machine simulation for Cycle #$cycleNum with active sensor streaming',
+                            waitDuration: const Duration(milliseconds: 200),
+                            child: SizedBox(
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: (isStreaming || isUploading)
+                                    ? (isStreaming ? controller.cancelLiveStream : null)
+                                    : controller.startLiveCycleStream,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isStreaming ? AppColors.verdictAct : AppColors.primaryDark,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(isStreaming ? Icons.stop_rounded : Icons.sensors_rounded, color: Colors.white, size: 20),
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Flexible(
+                                      child: Text(
+                                        isStreaming ? 'Stop Stream' : 'Live 60s Stream (#$cycleNum)',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -503,17 +562,21 @@ class TelemetrySimulatorCard extends StatelessWidget {
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           flex: 2,
-                          child: SizedBox(
-                            height: 48,
-                            child: OutlinedButton(
-                              onPressed: (isStreaming || isUploading) ? null : controller.ingestTelemetryCycle,
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.borderLight),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          child: Tooltip(
+                            message: 'Instant Batch Mode: Compresses the 17 sensor streams to Parquet, calculates SHA-256, and commits to ledger immediately (~35 ms)',
+                            waitDuration: const Duration(milliseconds: 200),
+                            child: SizedBox(
+                              height: 48,
+                              child: OutlinedButton(
+                                onPressed: (isStreaming || isUploading) ? null : controller.ingestTelemetryCycle,
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: AppColors.borderLight),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: isUploading
+                                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Text('Instant Batch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                               ),
-                              child: isUploading
-                                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : const Text('Instant Batch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ),
@@ -535,38 +598,47 @@ class _RateBadge extends StatelessWidget {
   final String count;
   final String names;
   final Color color;
+  final String description;
 
   const _RateBadge({
     required this.rate,
     required this.count,
     required this.names,
     required this.color,
+    required this.description,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
+    return Tooltip(
+      message: description,
+      waitDuration: const Duration(milliseconds: 200),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.help,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-              const SizedBox(width: AppSpacing.xs),
-              Text(rate, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
-              const SizedBox(width: AppSpacing.xs),
-              Text('($count)', style: const TextStyle(fontSize: 10, color: AppColors.slate600)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(rate, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text('($count)', style: const TextStyle(fontSize: 10, color: AppColors.slate600)),
+                ],
+              ),
+              Text(names, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: AppColors.slate700)),
             ],
           ),
-          Text(names, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: AppColors.slate700)),
-        ],
+        ),
       ),
     );
   }

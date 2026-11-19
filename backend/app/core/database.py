@@ -156,7 +156,7 @@ class DatabaseService:
                         .order("event_time", desc=False)
                         .execute()
                     )
-                    if query.data is not None:
+                    if query.data:
                         items = [self._row_to_item(r) for r in query.data]
                         for item in items:
                             self._memory_store[item.id] = item

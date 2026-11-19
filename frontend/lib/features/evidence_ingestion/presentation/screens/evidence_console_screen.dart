@@ -43,15 +43,22 @@ class EvidenceConsoleScreen extends StatelessWidget {
                         children: [
                           Text('Industrial Evidence Ingestion Console', style: AppTextStyles.headingLarge),
                           const SizedBox(width: AppSpacing.sm),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'RIG: hydraulic_rig_01',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+                          Tooltip(
+                            message: 'Active Physical Asset: Hydraulic Test Bench (hydraulic_rig_01)\nTenant: hydraulic_lab • Discrete 60s Cycles @ 100 Hz',
+                            waitDuration: const Duration(milliseconds: 200),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.help,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Text(
+                                  'RIG: hydraulic_rig_01',
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -66,40 +73,46 @@ class EvidenceConsoleScreen extends StatelessWidget {
                 ),
 
                 // Live API vs Mock Mode Switch
-                Obx(() => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: controller.isMockMode.value ? AppColors.sensorTemp.withValues(alpha: 0.12) : AppColors.success.withValues(alpha: 0.12),
-                        borderRadius: const BorderRadius.all(Radius.circular(20)),
-                        border: Border.all(
-                          color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            controller.isMockMode.value ? Icons.offline_bolt_rounded : Icons.cloud_done_rounded,
-                            size: 16,
+                Obx(() => Tooltip(
+                      message: controller.isMockMode.value
+                          ? 'Offline Demo Mode: Local simulation with mock SHA-256 and latency measurements. Click switch to connect to live FastAPI backend at localhost:8000.'
+                          : 'Live Backend Mode: Connected to FastAPI backend at http://localhost:8000 with real Supabase Object Storage & Database persistence.',
+                      waitDuration: const Duration(milliseconds: 200),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: controller.isMockMode.value ? AppColors.sensorTemp.withValues(alpha: 0.12) : AppColors.success.withValues(alpha: 0.12),
+                          borderRadius: const BorderRadius.all(Radius.circular(20)),
+                          border: Border.all(
                             color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
+                            width: 1,
                           ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Text(
-                            controller.isMockMode.value ? 'OFFLINE DEMO MODE' : 'LIVE API (localhost:8000)',
-                            style: AppTextStyles.labelCaps.copyWith(
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              controller.isMockMode.value ? Icons.offline_bolt_rounded : Icons.cloud_done_rounded,
+                              size: 16,
                               color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
-                              fontWeight: FontWeight.bold,
                             ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Switch(
-                            value: controller.isMockMode.value,
-                            onChanged: (_) => controller.toggleMockMode(),
-                            activeThumbColor: AppColors.sensorTemp,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        ],
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              controller.isMockMode.value ? 'OFFLINE DEMO MODE' : 'LIVE API (localhost:8000)',
+                              style: AppTextStyles.labelCaps.copyWith(
+                                color: controller.isMockMode.value ? AppColors.sensorTemp : AppColors.success,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Switch(
+                              value: controller.isMockMode.value,
+                              onChanged: (_) => controller.toggleMockMode(),
+                              activeThumbColor: AppColors.sensorTemp,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ],
+                        ),
                       ),
                     )),
               ],
@@ -123,6 +136,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
                       child: _ConsoleTabButton(
                         label: '17-Sensor Hydraulic Rig Stream',
                         badge: '60s Machine Cycles (100 Hz)',
+                        tooltip: 'Discrete 60-second machine cycles from UCI Hydraulic Test Bench across 17 synchronized sensors (PS1..PS6, FS1..FS2, TS1..TS4, etc.).',
                         icon: Icons.speed_rounded,
                         isSelected: activeTab == 0,
                         activeColor: AppColors.primary,
@@ -133,6 +147,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
                       child: _ConsoleTabButton(
                         label: 'Continuous CSV Telemetry',
                         badge: 'MetroPT / SCANIA Logs',
+                        tooltip: 'Continuous multi-sensor CSV streams for Metro do Porto train compressor and SCANIA heavy fleet with Polars Rust compression engine.',
                         icon: Icons.table_chart_rounded,
                         isSelected: activeTab == 1,
                         activeColor: AppColors.success,
@@ -143,6 +158,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
                       child: _ConsoleTabButton(
                         label: 'Documentary Evidence (PDF)',
                         badge: 'SHA-256 Verified',
+                        tooltip: 'Field technician maintenance records and work orders with PDF text extraction and cryptographic SHA-256 fingerprinting.',
                         icon: Icons.picture_as_pdf_rounded,
                         isSelected: activeTab == 2,
                         activeColor: AppColors.sensorTemp,
@@ -278,6 +294,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
 class _ConsoleTabButton extends StatelessWidget {
   final String label;
   final String badge;
+  final String tooltip;
   final IconData icon;
   final bool isSelected;
   final Color activeColor;
@@ -286,6 +303,7 @@ class _ConsoleTabButton extends StatelessWidget {
   const _ConsoleTabButton({
     required this.label,
     required this.badge,
+    required this.tooltip,
     required this.icon,
     required this.isSelected,
     required this.activeColor,
@@ -294,49 +312,54 @@ class _ConsoleTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.slate900 : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? activeColor : AppColors.slate600,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: AppTextStyles.headingSmall.copyWith(
-                      color: isSelected ? Colors.white : AppColors.textPrimary,
-                      fontSize: 13,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    badge,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isSelected ? activeColor : AppColors.slate600,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 250),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        hoverColor: activeColor.withValues(alpha: 0.08),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.slate900 : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected ? activeColor : AppColors.slate600,
               ),
-            ),
-          ],
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: AppTextStyles.headingSmall.copyWith(
+                        color: isSelected ? Colors.white : AppColors.textPrimary,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      badge,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isSelected ? activeColor : AppColors.slate600,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

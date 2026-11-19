@@ -54,17 +54,21 @@ class LiveForensicCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-                      decoration: BoxDecoration(
-                        color: evidence.qualityFlag == 'NOMINAL' ? AppColors.success.withValues(alpha: 0.15) : AppColors.warning.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        evidence.qualityFlag,
-                        style: AppTextStyles.monoSmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: evidence.qualityFlag == 'NOMINAL' ? AppColors.success : AppColors.warning,
+                    Tooltip(
+                      message: 'Quality Flag: ${evidence.qualityFlag}\n${evidence.qualityFlag == "NOMINAL" ? "All sensor channels within physical operating envelope." : "Data degraded or out-of-spec readings detected."}',
+                      waitDuration: const Duration(milliseconds: 200),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                        decoration: BoxDecoration(
+                          color: evidence.qualityFlag == 'NOMINAL' ? AppColors.success.withValues(alpha: 0.15) : AppColors.warning.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          evidence.qualityFlag,
+                          style: AppTextStyles.monoSmall.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: evidence.qualityFlag == 'NOMINAL' ? AppColors.success : AppColors.warning,
+                          ),
                         ),
                       ),
                     ),

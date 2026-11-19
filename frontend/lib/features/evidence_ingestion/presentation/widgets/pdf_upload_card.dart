@@ -68,36 +68,41 @@ class PdfUploadCard extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    InkWell(
-                      onTap: controller.pickPdfFile,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: fileError != null ? AppColors.error.withValues(alpha: 0.04) : AppColors.bgLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: fileError != null ? AppColors.error : AppColors.borderLight,
-                            width: 1.5,
+                    Tooltip(
+                      message: 'Click or drop official technician inspection or repair work order PDF up to 25 MB',
+                      waitDuration: const Duration(milliseconds: 200),
+                      child: InkWell(
+                        onTap: controller.pickPdfFile,
+                        borderRadius: BorderRadius.circular(10),
+                        hoverColor: AppColors.sensorTemp.withValues(alpha: 0.05),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
+                          decoration: BoxDecoration(
+                            color: fileError != null ? AppColors.error.withValues(alpha: 0.04) : AppColors.bgLight,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: fileError != null ? AppColors.error : AppColors.borderLight,
+                              width: 1.5,
+                            ),
                           ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.cloud_upload_outlined,
-                              size: 42,
-                              color: fileError != null ? AppColors.error : AppColors.slate600,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text('Click to Browse or Choose PDF Document', style: AppTextStyles.headingSmall),
-                            const SizedBox(height: AppSpacing.xxs),
-                            Text(
-                              'Supports official inspection PDF documents up to 25 MB',
-                              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
-                            ),
-                          ],
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.cloud_upload_outlined,
+                                size: 42,
+                                color: fileError != null ? AppColors.error : AppColors.slate600,
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Text('Click to Browse or Choose PDF Document', style: AppTextStyles.headingSmall),
+                              const SizedBox(height: AppSpacing.xxs),
+                              Text(
+                                'Supports official inspection PDF documents up to 25 MB',
+                                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -274,32 +279,39 @@ class PdfUploadCard extends StatelessWidget {
               height: 48,
               child: Obx(() {
                 final isUploading = controller.isUploading.value;
-                return ElevatedButton(
-                  onPressed: isUploading ? null : controller.uploadPdf,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.slate900,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                final hasFile = controller.pickedPdfBytes.value != null;
+                return Tooltip(
+                  message: hasFile
+                      ? 'Upload PDF to FastAPI: extracts text via pypdf, computes SHA-256 fingerprint, stores binary in Supabase Object Storage, and commits to ledger'
+                      : 'Please select a valid PDF file to upload',
+                  waitDuration: const Duration(milliseconds: 200),
+                  child: ElevatedButton(
+                    onPressed: (isUploading || !hasFile) ? null : controller.uploadPdf,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.slate900,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: isUploading
+                        ? const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                              SizedBox(width: AppSpacing.md),
+                              Text('Extracting Text & Calculating SHA-256...', style: TextStyle(color: Colors.white)),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.fingerprint_rounded, color: AppColors.sensorTemp),
+                              const SizedBox(width: AppSpacing.xs),
+                              Text(
+                                'Ingest PDF Evidence & Register Fingerprint',
+                                style: AppTextStyles.headingSmall.copyWith(color: Colors.white, fontSize: 14),
+                              ),
+                            ],
+                          ),
                   ),
-                  child: isUploading
-                      ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                            SizedBox(width: AppSpacing.md),
-                            Text('Extracting Text & Calculating SHA-256...', style: TextStyle(color: Colors.white)),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.fingerprint_rounded, color: AppColors.sensorTemp),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              'Ingest PDF Evidence & Register Fingerprint',
-                              style: AppTextStyles.headingSmall.copyWith(color: Colors.white, fontSize: 14),
-                            ),
-                          ],
-                        ),
                 );
               }),
             ),
