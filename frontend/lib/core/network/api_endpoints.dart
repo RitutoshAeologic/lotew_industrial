@@ -1,0 +1,8 @@
+class ApiEndpoints {
+  // Industrial Evidence Ingestion
+  static const uploadPdf = '/api/v1/industrial/evidence/upload-pdf';
+  static const ingestCycle = '/api/v1/industrial/evidence/ingest-cycle';
+  static const timeline = '/api/v1/industrial/evidence/timeline';
+  static const health = '/health';
+}
+
