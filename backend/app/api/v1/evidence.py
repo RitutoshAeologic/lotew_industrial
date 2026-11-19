@@ -70,6 +70,40 @@ async def upload_pdf(
         raise HTTPException(status_code=500, detail=f"Failed to process PDF: {str(e)}")
 
 
+@router.post("/upload-csv", response_model=EvidenceItem, summary="Upload Multi-Sensor CSV Telemetry")
+async def upload_csv(
+    file: UploadFile = File(..., description="Continuous industrial CSV telemetry log"),
+    tenant_id: str = Form(..., description="Multi-tenant identifier"),
+    asset_id: str = Form(..., description="Asset identifier"),
+    component_id: Optional[str] = Form(None, description="Optional target component"),
+    evidence_service: EvidenceService = Depends(get_evidence_service),
+):
+    """
+    Ingests continuous multi-sensor CSV telemetry:
+    - High-performance Polars extraction
+    - ZSTD Parquet tiered storage
+    - Median / MAD / Min / Max statistical canonicalization
+    """
+    try:
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded CSV file is empty.")
+
+        item = evidence_service.ingest_csv_telemetry(
+            file_bytes=file_bytes,
+            file_name=file.filename or "telemetry.csv",
+            tenant_id=tenant_id,
+            asset_id=asset_id,
+            component_id=component_id,
+        )
+        return item
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error ingesting CSV: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
+
+
 @router.post("/ingest-cycle", response_model=EvidenceItem, summary="Ingest 17-Sensor Telemetry Cycle")
 async def ingest_cycle(
     request: IngestCycleRequest,

@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from ..adapters.hydraulic_adapter import HydraulicRigAdapter
 from ..adapters.pdf_adapter import PdfDocumentAdapter
+from ..adapters.csv_adapter import CsvTelemetryAdapter
 from ..core.config import Settings, get_settings
 from ..core.database import DatabaseService
 from ..models.canonical import EvidenceItem
@@ -33,6 +34,7 @@ class EvidenceService:
 
         # Adapters
         self.pdf_adapter = PdfDocumentAdapter()
+        self.csv_adapter = CsvTelemetryAdapter()
         data_path = self.settings.get_hydraulic_data_path()
         self.hydraulic_adapter = HydraulicRigAdapter(
             data_dir=data_path,
@@ -82,6 +84,46 @@ class EvidenceService:
             processing_latency_ms=canonical.timestamps.processing_latency_ms,
             quality_flag="NOMINAL",
             extracted_text=extra_meta.get("extracted_text"),
+            canonical_data=canonical.model_dump(by_alias=True),
+        )
+
+        return self.database.save_evidence(evidence_item)
+
+    def ingest_csv_telemetry(
+        self,
+        file_bytes: bytes,
+        file_name: str,
+        tenant_id: str,
+        asset_id: str,
+        component_id: Optional[str] = None,
+    ) -> EvidenceItem:
+        """Processes continuous multi-sensor CSV telemetry."""
+        canonical, parquet_bytes, parquet_sha256, extra_meta = self.csv_adapter.extract_canonical(
+            file_bytes=file_bytes,
+            file_name=file_name,
+            tenant_id=tenant_id,
+            asset_id=asset_id,
+            component_id=component_id,
+        )
+
+        storage_path = f"telemetry/{tenant_id}/{asset_id}/{parquet_sha256[:16]}_{file_name.replace('.csv', '.parquet')}"
+        self.storage.upload(storage_path, parquet_bytes, mime_type="application/x-parquet")
+
+        evidence_item = EvidenceItem(
+            tenant_id=tenant_id,
+            asset_id=asset_id,
+            component_id=component_id or "system",
+            evidence_type="CSV_TELEMETRY",
+            cycle_id=None,
+            raw_file_name=file_name,
+            raw_storage_path=storage_path,
+            raw_file_sha256=parquet_sha256,
+            event_time=canonical.timestamps.event_time,
+            ingestion_time=canonical.timestamps.ingestion_time,
+            available_time=canonical.timestamps.available_time,
+            ingestion_latency_ms=canonical.timestamps.ingestion_latency_ms,
+            processing_latency_ms=canonical.timestamps.processing_latency_ms,
+            quality_flag="NOMINAL",
             canonical_data=canonical.model_dump(by_alias=True),
         )
 

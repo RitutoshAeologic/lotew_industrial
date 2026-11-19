@@ -104,6 +104,38 @@ def test_upload_pdf(client: TestClient, sample_pdf_bytes: bytes):
     assert item["canonical_data"]["measurements"]["proposed_action"] == "INSPECT_PUMP_SEAL"
 
 
+def test_upload_csv_telemetry(client: TestClient):
+    csv_content = (
+        "timestamp,TP2_temp,TP3_temp,H1_pressure,DV_pressure\n"
+        "2024-01-01T00:00:00Z,25.4,30.2,9.8,8.2\n"
+        "2024-01-01T00:00:01Z,25.6,30.5,9.9,8.1\n"
+        "2024-01-01T00:00:02Z,25.7,30.8,9.7,8.0\n"
+    ).encode("utf-8")
+
+    files = {
+        "file": ("metropt_telemetry.csv", csv_content, "text/csv")
+    }
+    data = {
+        "tenant_id": "metro_porto",
+        "asset_id": "train_compressor_01",
+        "component_id": "compressor",
+    }
+
+    response = client.post(
+        "/api/v1/industrial/evidence/upload-csv",
+        files=files,
+        data=data
+    )
+    assert response.status_code == 200
+    item = response.json()
+    assert item["evidence_type"] == "CSV_TELEMETRY"
+    assert item["tenant_id"] == "metro_porto"
+    assert len(item["raw_file_sha256"]) == 64
+    assert "channels" in item["canonical_data"]["measurements"]
+    assert "TP2_temp" in item["canonical_data"]["measurements"]["channels"]
+    assert item["canonical_data"]["measurements"]["channels"]["TP2_temp"]["median"] == 25.6
+
+
 def test_timeline_retrieval(client: TestClient):
     response = client.get(
         "/api/v1/industrial/evidence/timeline",

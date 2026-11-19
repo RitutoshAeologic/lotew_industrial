@@ -7,6 +7,7 @@ import '../../../../core/responsive/responsive_controller.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 import '../controllers/evidence_controller.dart';
 import '../widgets/canonical_json_viewer.dart';
+import '../widgets/csv_upload_card.dart';
 import '../widgets/live_forensic_card.dart';
 import '../widgets/pdf_upload_card.dart';
 import '../widgets/telemetry_simulator_card.dart';
@@ -106,7 +107,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.lg),
 
-            // Ingestion Mode Tab Switcher
+            // Ingestion Mode Tab Switcher (3 Modalities)
             Obx(() {
               final activeTab = controller.activeTab.value;
               return Container(
@@ -120,8 +121,8 @@ class EvidenceConsoleScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _ConsoleTabButton(
-                        label: '17-Sensor Telemetry Simulator (60s Cycles)',
-                        badge: '100 Hz / 10 Hz / 1 Hz',
+                        label: '17-Sensor Hydraulic Rig Stream',
+                        badge: '60s Machine Cycles (100 Hz)',
                         icon: Icons.speed_rounded,
                         isSelected: activeTab == 0,
                         activeColor: AppColors.primary,
@@ -130,12 +131,22 @@ class EvidenceConsoleScreen extends StatelessWidget {
                     ),
                     Expanded(
                       child: _ConsoleTabButton(
-                        label: 'Documentary Evidence (PDF Maintenance Logs)',
+                        label: 'Continuous CSV Telemetry',
+                        badge: 'MetroPT / SCANIA Logs',
+                        icon: Icons.table_chart_rounded,
+                        isSelected: activeTab == 1,
+                        activeColor: AppColors.success,
+                        onTap: () => controller.switchTab(1),
+                      ),
+                    ),
+                    Expanded(
+                      child: _ConsoleTabButton(
+                        label: 'Documentary Evidence (PDF)',
                         badge: 'SHA-256 Verified',
                         icon: Icons.picture_as_pdf_rounded,
-                        isSelected: activeTab == 1,
+                        isSelected: activeTab == 2,
                         activeColor: AppColors.sensorTemp,
-                        onTap: () => controller.switchTab(1),
+                        onTap: () => controller.switchTab(2),
                       ),
                     ),
                   ],
@@ -149,11 +160,17 @@ class EvidenceConsoleScreen extends StatelessWidget {
             Obx(() {
               final activeTab = controller.activeTab.value;
               final latestTelemetry = controller.latestTelemetryEvidence.value;
+              final latestCsv = controller.latestCsvEvidence.value;
               final latestPdf = controller.latestPdfEvidence.value;
 
-              final leftColumn = activeTab == 0
-                  ? const TelemetrySimulatorCard()
-                  : const PdfUploadCard();
+              Widget leftColumn;
+              if (activeTab == 0) {
+                leftColumn = const TelemetrySimulatorCard();
+              } else if (activeTab == 1) {
+                leftColumn = const CsvUploadCard();
+              } else {
+                leftColumn = const PdfUploadCard();
+              }
 
               Widget rightColumn;
               if (activeTab == 0) {
@@ -175,13 +192,32 @@ class EvidenceConsoleScreen extends StatelessWidget {
                 } else {
                   rightColumn = _AwaitingEvidenceCard(
                     title: 'No Telemetry Ingested in Current Session',
-                    description: 'Select Cycle #1 (Baseline) or Cycle #211 (Severe Leakage) on the left and click "Ingest Telemetry Batch".',
+                    description: 'Select Cycle #1 (Baseline) or Cycle #211 (Severe Leakage) on the left and click "Start Live 60s Stream" or "Instant Batch".',
                     actionLabel: 'Quick Ingest Cycle 1',
                     icon: Icons.speed_rounded,
                     onAction: () {
                       controller.setCyclePreset(1);
                       controller.ingestTelemetryCycle();
                     },
+                  );
+                }
+              } else if (activeTab == 1) {
+                // CSV Inspection
+                if (latestCsv != null) {
+                  rightColumn = Column(
+                    children: [
+                      LiveForensicCard(evidence: latestCsv),
+                      const SizedBox(height: AppSpacing.lg),
+                      CanonicalJsonViewer(data: latestCsv.canonicalData),
+                    ],
+                  );
+                } else {
+                  rightColumn = _AwaitingEvidenceCard(
+                    title: 'No CSV Telemetry Ingested Yet',
+                    description: 'Choose a continuous CSV sensor log (e.g. Metro do Porto compressor or SCANIA fleet) on the left to extract statistical channels and compress to Parquet.',
+                    actionLabel: 'Browse CSV File',
+                    icon: Icons.table_chart_rounded,
+                    onAction: controller.pickCsvFile,
                   );
                 }
               } else {

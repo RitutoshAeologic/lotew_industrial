@@ -39,7 +39,7 @@ class TelemetrySimulatorCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('17-Sensor Telemetry Simulator', style: AppTextStyles.headingSmall),
+                      Text('17-Sensor Telemetry Simulator & Real-Time Stream', style: AppTextStyles.headingSmall),
                       Text(
                         'Simultaneous multi-rate ingestion across 100 Hz, 10 Hz, and 1 Hz sensor arrays',
                         style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
@@ -224,66 +224,203 @@ class TelemetrySimulatorCard extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.sm),
 
-            // Tiered Storage Notice
+            // Real-Time 60-Second Machine Execution Simulation Box
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: AppColors.bgLight,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.borderLight),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.archive_outlined, size: 20, color: AppColors.primary),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Obx(() => Text(
-                          'Destination: Object Storage bucket industrial-raw/telemetry/cycle_${controller.cycleId.value.toString().padLeft(4, '0')}.parquet (Polars ZSTD)',
-                          style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondary, fontSize: 11),
-                        )),
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppSpacing.xs,
+                    runSpacing: 4,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 18, color: AppColors.primary),
+                          const SizedBox(width: AppSpacing.xs),
+                          Text('PHYSICAL 60-SECOND STREAMING', style: AppTextStyles.labelCaps),
+                        ],
+                      ),
+                      // Speed Multiplier Selector
+                      Obx(() => Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Speed: ', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+                              ChoiceChip(
+                                label: const Text('1x Real (60s)', style: TextStyle(fontSize: 10)),
+                                selected: controller.streamSpeedMultiplier.value == 1,
+                                onSelected: (_) => controller.streamSpeedMultiplier.value = 1,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const SizedBox(width: 4),
+                              ChoiceChip(
+                                label: const Text('6x Demo (10s)', style: TextStyle(fontSize: 10)),
+                                selected: controller.streamSpeedMultiplier.value == 6,
+                                onSelected: (_) => controller.streamSpeedMultiplier.value = 6,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          )),
+                    ],
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+
+                  // Active Stream Status & Progress Bar
+                  Obx(() {
+                    final isStreaming = controller.isStreamingLiveCycle.value;
+                    final elapsed = controller.streamElapsedSeconds.value;
+                    final progress = elapsed / 60.0;
+                    final phase = controller.currentLivePhase.value;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              isStreaming ? 'STREAMING: $phase' : (elapsed == 60 ? 'CYCLE SEALED & COMMITTED' : 'READY TO STREAM 60s CYCLE'),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isStreaming ? AppColors.primaryDark : AppColors.slate700,
+                              ),
+                            ),
+                            Text('${elapsed}s / 60s', style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        LinearProgressIndicator(
+                          value: isStreaming || elapsed > 0 ? progress : 0.0,
+                          backgroundColor: AppColors.borderLight,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            elapsed == 60 ? AppColors.success : AppColors.primary,
+                          ),
+                          minHeight: 6,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+
+                        // Dual Live Telemetry Digital Gauges
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.borderLight),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('LIVE PS1:', style: TextStyle(fontSize: 11, color: AppColors.slate600)),
+                                    Text(
+                                      '${controller.currentLivePressure.value.toStringAsFixed(1)} bar',
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.sensorPressure),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: AppColors.borderLight),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('LIVE FS1:', style: TextStyle(fontSize: 11, color: AppColors.slate600)),
+                                    Text(
+                                      '${controller.currentLiveFlow.value.toStringAsFixed(1)} L/min',
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.sensorFlow),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  }),
                 ],
               ),
             ),
 
             const SizedBox(height: AppSpacing.lg),
 
-            // Ingest Action Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: Obx(() {
-                final isUploading = controller.isUploading.value;
-                final cycleNum = controller.cycleId.value;
-                return ElevatedButton(
-                  onPressed: isUploading ? null : controller.ingestTelemetryCycle,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.slate900,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: isUploading
-                      ? const Row(
+            // Ingest Action Buttons (Real-time Stream vs Instant Batch)
+            Obx(() {
+              final isStreaming = controller.isStreamingLiveCycle.value;
+              final isUploading = controller.isUploading.value;
+              final cycleNum = controller.cycleId.value;
+
+              return Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: (isStreaming || isUploading)
+                            ? (isStreaming ? controller.cancelLiveStream : null)
+                            : controller.startLiveCycleStream,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isStreaming ? AppColors.verdictAct : AppColors.primaryDark,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                            SizedBox(width: AppSpacing.md),
-                            Text('Aligning 17 Multi-Rate Sensors in Lockstep...', style: TextStyle(color: Colors.white)),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.play_arrow_rounded, color: AppColors.primary),
+                            Icon(isStreaming ? Icons.stop_rounded : Icons.sensors_rounded, color: Colors.white, size: 20),
                             const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              'Ingest Cycle #$cycleNum Telemetry Batch',
-                              style: AppTextStyles.headingSmall.copyWith(color: Colors.white, fontSize: 14),
+                            Flexible(
+                              child: Text(
+                                isStreaming ? 'Stop Stream' : 'Live 60s Stream (#$cycleNum)',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
-                );
-              }),
-            ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: (isStreaming || isUploading) ? null : controller.ingestTelemetryCycle,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.borderLight),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: isUploading
+                            ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Instant Batch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
           ],
         ),
       ),
