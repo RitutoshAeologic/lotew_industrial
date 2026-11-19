@@ -32,7 +32,8 @@ frontend/.flutter-plugins
 frontend/.flutter-plugins-dependencies
 
 # Data & Storage
-data/
+/data/
+backend/data/
 storage/
 *.parquet
 

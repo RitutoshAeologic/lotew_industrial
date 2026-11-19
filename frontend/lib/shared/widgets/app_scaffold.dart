@@ -18,6 +18,7 @@ class AppScaffold extends StatelessWidget {
         drawer: rc.isMobile ? const Drawer(child: SidebarNav(compact: false)) : null,
         appBar: const TopBar(),
         body: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!rc.isMobile) ...[
               SidebarNav(compact: !rc.isSidebarExpanded.value),
