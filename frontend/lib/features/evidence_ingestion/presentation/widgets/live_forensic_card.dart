@@ -194,6 +194,7 @@ class LiveForensicCard extends StatelessWidget {
                     title: 'Ingestion Latency (T2 - T1)',
                     ms: evidence.ingestionLatencyMs,
                     description: 'Time elapsed between physical event and API arrival',
+                    isBenchReplay: evidence.isTelemetry,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -202,6 +203,7 @@ class LiveForensicCard extends StatelessWidget {
                     title: 'Processing Latency (T3 - T2)',
                     ms: evidence.processingLatencyMs,
                     description: 'Time taken for SHA-256 hashing, Parquet & JSON parsing',
+                    isBenchReplay: false,
                   ),
                 ),
               ],
@@ -325,17 +327,24 @@ class _LatencyCard extends StatelessWidget {
   final String title;
   final double? ms;
   final String description;
+  final bool isBenchReplay;
 
   const _LatencyCard({
     required this.title,
     required this.ms,
     required this.description,
+    this.isBenchReplay = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool showReplay = isBenchReplay || ms == null || (ms != null && ms! >= 86400000.0);
+    final tooltipText = showReplay
+        ? 'T1 is anchored to physical test bench run (2024). In live IoT production with real edge gateways, T2 - T1 represents physical edge-to-cloud transmission latency (~12-45 ms). For historical bench replay, physical transmission latency is N/A.'
+        : AppFormatters.formatTooltipDuration(ms);
+
     return Tooltip(
-      message: AppFormatters.formatTooltipDuration(ms),
+      message: tooltipText,
       waitDuration: const Duration(milliseconds: 200),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -349,15 +358,52 @@ class _LatencyCard extends StatelessWidget {
           children: [
             Text(title, style: AppTextStyles.labelCaps),
             const SizedBox(height: AppSpacing.xs),
-            Text(
-              AppFormatters.formatDurationMs(ms),
-              style: AppTextStyles.monoLarge.copyWith(
-                color: AppColors.primaryDark,
-                fontSize: 20,
+            if (showReplay)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'N/A',
+                    style: AppTextStyles.monoLarge.copyWith(
+                      color: AppColors.slate700,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      'BENCH REPLAY',
+                      style: AppTextStyles.monoSmall.copyWith(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Text(
+                AppFormatters.formatDurationMs(ms),
+                style: AppTextStyles.monoLarge.copyWith(
+                  color: AppColors.primaryDark,
+                  fontSize: 20,
+                ),
               ),
-            ),
             const SizedBox(height: 2),
-            Text(description, style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+            Text(
+              showReplay
+                  ? 'Historical dataset replay (UCI Rig Anchor: 2024) • Live edge latency ~15-45 ms'
+                  : description,
+              style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+            ),
           ],
         ),
       ),

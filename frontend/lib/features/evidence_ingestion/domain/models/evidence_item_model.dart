@@ -54,7 +54,11 @@ class EvidenceItemModel {
       eventTime: json['event_time'] != null ? DateTime.tryParse(json['event_time'].toString()) : null,
       ingestionTime: DateTime.tryParse(json['ingestion_time']?.toString() ?? '') ?? DateTime.now(),
       availableTime: DateTime.tryParse(json['available_time']?.toString() ?? '') ?? DateTime.now(),
-      ingestionLatencyMs: (json['ingestion_latency_ms'] as num?)?.toDouble(),
+      ingestionLatencyMs: () {
+        final val = (json['ingestion_latency_ms'] as num?)?.toDouble();
+        if (val == null || val >= 86400000.0) return null;
+        return val;
+      }(),
       processingLatencyMs: (json['processing_latency_ms'] as num?)?.toDouble(),
       qualityFlag: json['quality_flag']?.toString() ?? 'NOMINAL',
       extractedText: json['extracted_text']?.toString(),

@@ -115,7 +115,7 @@ class DatabaseService:
                 "event_time": item.event_time.isoformat() if item.event_time else None,
                 "ingestion_time": item.ingestion_time.isoformat(),
                 "available_time": item.available_time.isoformat(),
-                "ingestion_latency_ms": min(999999999.0, item.ingestion_latency_ms) if item.ingestion_latency_ms is not None else None,
+                "ingestion_latency_ms": None if (item.ingestion_latency_ms is None or item.ingestion_latency_ms >= 86400000.0) else item.ingestion_latency_ms,
                 "processing_latency_ms": item.processing_latency_ms,
                 "quality_flag": item.quality_flag,
                 "extracted_text": item.extracted_text,
@@ -235,6 +235,10 @@ class DatabaseService:
                     canonical_ordered[k] = v
             canonical_raw = canonical_ordered
 
+        raw_ingest_lat = row.get("ingestion_latency_ms")
+        if raw_ingest_lat is not None and (raw_ingest_lat >= 86400000.0 or raw_ingest_lat == 0.0):
+            raw_ingest_lat = None
+
         return EvidenceItem(
             id=str(row["id"]),
             tenant_id=str(row.get("tenant_id", "hydraulic_lab")),
@@ -248,7 +252,7 @@ class DatabaseService:
             event_time=event_time,
             ingestion_time=ingestion_time,
             available_time=available_time,
-            ingestion_latency_ms=row.get("ingestion_latency_ms"),
+            ingestion_latency_ms=raw_ingest_lat,
             processing_latency_ms=row.get("processing_latency_ms"),
             quality_flag=str(row.get("quality_flag", "NOMINAL")),
             extracted_text=row.get("extracted_text"),
