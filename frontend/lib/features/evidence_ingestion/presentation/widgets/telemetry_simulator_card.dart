@@ -461,12 +461,10 @@ class TelemetrySimulatorCard extends StatelessWidget {
                               ),
                               const SizedBox(height: AppSpacing.xs),
                               LinearProgressIndicator(
-                                value: isUploading ? null : (isStreaming || elapsed > 0 ? progress : 0.0),
+                                value: isStreaming || elapsed > 0 ? progress : 0.0,
                                 backgroundColor: AppColors.borderLight,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  isUploading
-                                      ? AppColors.sensorTemp
-                                      : (elapsed == 60 ? AppColors.success : AppColors.primary),
+                                  elapsed == 60 ? AppColors.success : AppColors.primary,
                                 ),
                                 minHeight: 6,
                                 borderRadius: BorderRadius.circular(3),
@@ -577,39 +575,28 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: isStreaming
                                           ? AppColors.verdictAct
-                                          : (isUploading ? AppColors.slate700 : AppColors.primaryDark),
+                                          : AppColors.primaryDark,
+                                      disabledBackgroundColor: AppColors.slate300,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        if (isUploading) ...[
-                                          const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        Icon(
+                                          isStreaming ? Icons.stop_rounded : (cycleNum > 1 ? Icons.fast_forward_rounded : Icons.sensors_rounded),
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: AppSpacing.xs),
+                                        Flexible(
+                                          child: Text(
+                                            isStreaming
+                                                ? 'Stop Stream'
+                                                : (cycleNum > 1 ? 'Live Stream (1 → $cycleNum)' : 'Live 60s Stream (#1)'),
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          const SizedBox(width: AppSpacing.xs),
-                                          const Flexible(
-                                            child: Text(
-                                              'Sealing Batch...',
-                                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ] else ...[
-                                          Icon(isStreaming ? Icons.stop_rounded : (cycleNum > 1 ? Icons.fast_forward_rounded : Icons.sensors_rounded), color: Colors.white, size: 20),
-                                          const SizedBox(width: AppSpacing.xs),
-                                          Flexible(
-                                            child: Text(
-                                              isStreaming
-                                                  ? 'Stop Stream'
-                                                  : (cycleNum > 1 ? 'Live Stream (1 → $cycleNum)' : 'Live 60s Stream (#1)'),
-                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -630,13 +617,7 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                       side: const BorderSide(color: AppColors.borderLight),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
-                                    child: isUploading
-                                        ? const SizedBox(
-                                            height: 18,
-                                            width: 18,
-                                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryDark),
-                                          )
-                                        : Text(cycleNum > 1 ? 'Batch #$cycleNum' : 'Instant Batch', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    child: Text(cycleNum > 1 ? 'Batch #$cycleNum' : 'Instant Batch', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                   ),
                                 ),
                               ),

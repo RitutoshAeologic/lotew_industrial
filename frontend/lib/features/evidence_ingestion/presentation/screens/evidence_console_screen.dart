@@ -751,11 +751,7 @@ class _StepStatusRow extends StatelessWidget {
         if (isDone)
           const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success)
         else if (isPending)
-          const SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-          )
+          const Icon(Icons.sync_rounded, size: 16, color: AppColors.primary)
         else
           const Icon(Icons.radio_button_unchecked_rounded, size: 16, color: AppColors.slate500),
         const SizedBox(width: AppSpacing.xs),
