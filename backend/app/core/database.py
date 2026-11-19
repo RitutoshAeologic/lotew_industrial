@@ -31,16 +31,24 @@ class DatabaseService:
         self._supabase_client = None
         self._memory_store: Dict[str, EvidenceItem] = {}
 
-        if self.settings.SUPABASE_URL and self.settings.SUPABASE_KEY:
+        supabase_url = self.settings.clean_supabase_url
+        supabase_key = self.settings.active_supabase_key
+        if supabase_url and supabase_key:
             try:
                 from supabase import create_client
                 self._supabase_client = create_client(
-                    self.settings.SUPABASE_URL,
-                    self.settings.SUPABASE_KEY
+                    supabase_url,
+                    supabase_key
                 )
                 logger.info("Supabase database client initialized.")
             except Exception as e:
                 logger.warning(f"Could not connect to Supabase: {e}. Using resilient local store.")
+
+    def _query_table(self):
+        """Returns industrial.evidence_streams or fallback to public.evidence_streams view."""
+        if not self._supabase_client:
+            return None
+        return self._supabase_client.schema("industrial").table("evidence_streams")
 
     def find_cycle(self, tenant_id: str, asset_id: str, cycle_id: int) -> Optional[EvidenceItem]:
         """
@@ -59,25 +67,29 @@ class DatabaseService:
 
         # Check Supabase
         if self._supabase_client:
-            try:
-                query = (
-                    self._supabase_client.schema("industrial")
-                    .table("evidence_streams")
-                    .select("*")
-                    .eq("tenant_id", tenant_id)
-                    .eq("asset_id", asset_id)
-                    .eq("evidence_type", "TELEMETRY_CYCLE")
-                    .eq("cycle_id", cycle_id)
-                    .limit(1)
-                    .execute()
-                )
-                if query.data and len(query.data) > 0:
-                    row = query.data[0]
-                    item = self._row_to_item(row)
-                    self._memory_store[item.id] = item
-                    return item
-            except Exception as e:
-                logger.warning(f"Supabase query failed during idempotency check: {e}")
+            for tbl in [
+                lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                lambda: self._supabase_client.table("evidence_streams"),
+            ]:
+                try:
+                    query = (
+                        tbl()
+                        .select("*")
+                        .eq("tenant_id", tenant_id)
+                        .eq("asset_id", asset_id)
+                        .eq("evidence_type", "TELEMETRY_CYCLE")
+                        .eq("cycle_id", cycle_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    if query.data and len(query.data) > 0:
+                        row = query.data[0]
+                        item = self._row_to_item(row)
+                        self._memory_store[item.id] = item
+                        return item
+                    break
+                except Exception as e:
+                    logger.debug(f"Query check attempt failed: {e}")
 
         return None
 
@@ -90,30 +102,36 @@ class DatabaseService:
 
         # Save to Supabase if configured
         if self._supabase_client:
-            try:
-                row_data = {
-                    "id": item.id,
-                    "tenant_id": item.tenant_id,
-                    "asset_id": item.asset_id,
-                    "component_id": item.component_id or "system",
-                    "evidence_type": item.evidence_type,
-                    "cycle_id": item.cycle_id,
-                    "raw_file_name": item.raw_file_name,
-                    "raw_storage_path": item.raw_storage_path,
-                    "raw_file_sha256": item.raw_file_sha256,
-                    "event_time": item.event_time.isoformat() if item.event_time else None,
-                    "ingestion_time": item.ingestion_time.isoformat(),
-                    "available_time": item.available_time.isoformat(),
-                    "ingestion_latency_ms": item.ingestion_latency_ms,
-                    "processing_latency_ms": item.processing_latency_ms,
-                    "quality_flag": item.quality_flag,
-                    "extracted_text": item.extracted_text,
-                    "canonical_data": item.canonical_data,
-                }
-                self._supabase_client.schema("industrial").table("evidence_streams").upsert(row_data).execute()
-                logger.info(f"Persisted evidence {item.id} to Supabase industrial.evidence_streams.")
-            except Exception as e:
-                logger.warning(f"Could not persist to Supabase: {e}. Saved in local memory.")
+            row_data = {
+                "id": item.id,
+                "tenant_id": item.tenant_id,
+                "asset_id": item.asset_id,
+                "component_id": item.component_id or "system",
+                "evidence_type": item.evidence_type,
+                "cycle_id": item.cycle_id,
+                "raw_file_name": item.raw_file_name,
+                "raw_storage_path": item.raw_storage_path,
+                "raw_file_sha256": item.raw_file_sha256,
+                "event_time": item.event_time.isoformat() if item.event_time else None,
+                "ingestion_time": item.ingestion_time.isoformat(),
+                "available_time": item.available_time.isoformat(),
+                "ingestion_latency_ms": item.ingestion_latency_ms,
+                "processing_latency_ms": item.processing_latency_ms,
+                "quality_flag": item.quality_flag,
+                "extracted_text": item.extracted_text,
+                "canonical_data": item.canonical_data,
+            }
+
+            for tbl in [
+                lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                lambda: self._supabase_client.table("evidence_streams"),
+            ]:
+                try:
+                    tbl().upsert(row_data).execute()
+                    logger.info(f"Persisted evidence {item.id} to Supabase evidence_streams.")
+                    break
+                except Exception as e:
+                    logger.warning(f"Could not persist to Supabase: {e}. Saved in local memory.")
 
         return item
 
@@ -125,23 +143,26 @@ class DatabaseService:
         items: List[EvidenceItem] = []
 
         if self._supabase_client:
-            try:
-                query = (
-                    self._supabase_client.schema("industrial")
-                    .table("evidence_streams")
-                    .select("*")
-                    .eq("tenant_id", tenant_id)
-                    .eq("asset_id", asset_id)
-                    .order("event_time", desc=False)
-                    .execute()
-                )
-                if query.data:
-                    items = [self._row_to_item(r) for r in query.data]
-                    for item in items:
-                        self._memory_store[item.id] = item
-                    return items
-            except Exception as e:
-                logger.warning(f"Failed to query timeline from Supabase: {e}. Falling back to memory.")
+            for tbl in [
+                lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                lambda: self._supabase_client.table("evidence_streams"),
+            ]:
+                try:
+                    query = (
+                        tbl()
+                        .select("*")
+                        .eq("tenant_id", tenant_id)
+                        .eq("asset_id", asset_id)
+                        .order("event_time", desc=False)
+                        .execute()
+                    )
+                    if query.data is not None:
+                        items = [self._row_to_item(r) for r in query.data]
+                        for item in items:
+                            self._memory_store[item.id] = item
+                        return items
+                except Exception as e:
+                    logger.debug(f"Timeline query attempt failed: {e}")
 
         # Fallback to in-memory items
         items = [
@@ -158,21 +179,24 @@ class DatabaseService:
             return self._memory_store[evidence_id]
 
         if self._supabase_client:
-            try:
-                res = (
-                    self._supabase_client.schema("industrial")
-                    .table("evidence_streams")
-                    .select("*")
-                    .eq("id", evidence_id)
-                    .limit(1)
-                    .execute()
-                )
-                if res.data and len(res.data) > 0:
-                    item = self._row_to_item(res.data[0])
-                    self._memory_store[item.id] = item
-                    return item
-            except Exception:
-                pass
+            for tbl in [
+                lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                lambda: self._supabase_client.table("evidence_streams"),
+            ]:
+                try:
+                    res = (
+                        tbl()
+                        .select("*")
+                        .eq("id", evidence_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    if res.data and len(res.data) > 0:
+                        item = self._row_to_item(res.data[0])
+                        self._memory_store[item.id] = item
+                        return item
+                except Exception:
+                    pass
 
         return None
 

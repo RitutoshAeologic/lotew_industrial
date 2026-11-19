@@ -26,12 +26,14 @@ class StorageService:
         self.local_root.mkdir(parents=True, exist_ok=True)
 
         self._supabase_client = None
-        if self.settings.SUPABASE_URL and self.settings.SUPABASE_KEY:
+        supabase_url = self.settings.clean_supabase_url
+        supabase_key = self.settings.active_supabase_key
+        if supabase_url and supabase_key:
             try:
                 from supabase import create_client
                 self._supabase_client = create_client(
-                    self.settings.SUPABASE_URL,
-                    self.settings.SUPABASE_KEY
+                    supabase_url,
+                    supabase_key
                 )
                 logger.info("Supabase storage client initialized successfully.")
             except Exception as e:

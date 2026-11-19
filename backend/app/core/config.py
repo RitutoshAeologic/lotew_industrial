@@ -52,7 +52,23 @@ class Settings(BaseSettings):
     LOCAL_STORAGE_DIR: str = "storage/industrial-raw"
     SUPABASE_URL: str = Field(default="", validation_alias="SUPABASE_URL")
     SUPABASE_KEY: str = Field(default="", validation_alias="SUPABASE_KEY")
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="", validation_alias="SUPABASE_SERVICE_ROLE_KEY")
+    SUPABASE_ANON_KEY: str = Field(default="", validation_alias="SUPABASE_ANON_KEY")
+    SUPABASE_SECRET_KEY: str = Field(default="", validation_alias="SUPABASE_SECRET_KEY")
     DATABASE_URL: str = Field(default="", validation_alias="DATABASE_URL")
+
+    @property
+    def clean_supabase_url(self) -> str:
+        """Strip trailing /rest/v1 or /rest/v1/ to produce clean project base URL."""
+        url = self.SUPABASE_URL.strip().rstrip("/")
+        if url.endswith("/rest/v1"):
+            url = url[:-8]
+        return url
+
+    @property
+    def active_supabase_key(self) -> str:
+        """Prefer Service Role Key for server-side persistence, fallback to SUPABASE_KEY."""
+        return self.SUPABASE_SERVICE_ROLE_KEY or self.SUPABASE_KEY or self.SUPABASE_ANON_KEY
 
     # ── Dataset Location ──────────────────────────────────────────────────────
     # Searches relative to project root or workspace
