@@ -239,10 +239,44 @@ class _ForensicMetaField extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: AppColors.borderLight),
           ),
-          child: SelectableText(
-            value,
-            style: isMono ? AppTextStyles.monoSmall : AppTextStyles.bodyMedium,
-            maxLines: 1,
+          child: Row(
+            children: [
+              Expanded(
+                child: Tooltip(
+                  message: value,
+                  waitDuration: const Duration(milliseconds: 200),
+                  child: Text(
+                    value,
+                    style: isMono ? AppTextStyles.monoSmall : AppTextStyles.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Tooltip(
+                message: 'Copy to clipboard',
+                waitDuration: const Duration(milliseconds: 200),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: value));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Copied $label to clipboard', style: AppTextStyles.monoSmall.copyWith(color: Colors.white)),
+                          duration: const Duration(milliseconds: 1500),
+                          backgroundColor: AppColors.slate900,
+                          behavior: SnackBarBehavior.floating,
+                          width: 320,
+                        ),
+                      );
+                    },
+                    child: const Icon(Icons.copy_rounded, size: 14, color: AppColors.slate600),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],

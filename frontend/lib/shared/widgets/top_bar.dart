@@ -45,24 +45,49 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         if (rc.isDesktop) ...[
-          // Tenant Selector Dropdown
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.bgLight,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.borderLight),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: AppConstants.defaultTenantId,
-                icon: const Icon(Icons.arrow_drop_down, color: AppColors.slate600),
-                style: AppTextStyles.monoSmall,
-                items: AppConstants.tenants
-                    .map((t) => DropdownMenuItem(value: t['id'], child: Text('${t['name']} (${t['id']})')))
-                    .toList(),
-                onChanged: (_) {},
+          // Active Tenant & Rig Scope Badge (Replaced dead-click dropdown with crisp multi-tenant status)
+          Tooltip(
+            message: 'Active Multi-Tenant Scope: ${AppConstants.defaultTenantName}\nRig ID: ${AppConstants.defaultAssetId} (Physical Test Bench)',
+            waitDuration: const Duration(milliseconds: 200),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.bgLight,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: AppColors.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'TENANT: ${AppConstants.defaultTenantId}',
+                    style: AppTextStyles.monoSmall.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.slate900,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  const Text('|', style: TextStyle(color: AppColors.borderLight, fontSize: 11)),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    'RIG: ${AppConstants.defaultAssetId}',
+                    style: AppTextStyles.monoSmall.copyWith(
+                      color: AppColors.slate600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

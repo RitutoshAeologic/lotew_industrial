@@ -136,7 +136,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
                     Expanded(
                       child: _ConsoleTabButton(
                         label: '17-Sensor Hydraulic Rig Stream',
-                        badge: '60s Machine Cycles (100 Hz)',
+                        badge: 'PRIMARY DEMO • 100 Hz',
                         tooltip: 'Discrete 60-second machine cycles from UCI Hydraulic Test Bench across 17 synchronized sensors (PS1..PS6, FS1..FS2, TS1..TS4, etc.).',
                         icon: Icons.speed_rounded,
                         isSelected: activeTab == 0,
@@ -146,19 +146,19 @@ class EvidenceConsoleScreen extends StatelessWidget {
                     ),
                     Expanded(
                       child: _ConsoleTabButton(
-                        label: 'Continuous CSV Telemetry',
-                        badge: 'MetroPT / SCANIA Logs',
-                        tooltip: 'Continuous multi-sensor CSV streams for Metro do Porto train compressor and SCANIA heavy fleet with Polars Rust compression engine.',
+                        label: 'Continuous Fleet Logs (CSV)',
+                        badge: 'Roadmap • MetroPT / SCANIA',
+                        tooltip: 'Secondary continuous multi-sensor CSV streams for Metro do Porto train compressor & SCANIA heavy fleet (Phase 2 Roadmap).',
                         icon: Icons.table_chart_rounded,
                         isSelected: activeTab == 1,
-                        activeColor: AppColors.success,
+                        activeColor: AppColors.slate600,
                         onTap: () => controller.switchTab(1),
                       ),
                     ),
                     Expanded(
                       child: _ConsoleTabButton(
                         label: 'Documentary Evidence (PDF)',
-                        badge: 'SHA-256 Verified',
+                        badge: 'Multimodal • SHA-256',
                         tooltip: 'Field technician maintenance records and work orders with PDF text extraction and cryptographic SHA-256 fingerprinting.',
                         icon: Icons.picture_as_pdf_rounded,
                         isSelected: activeTab == 2,

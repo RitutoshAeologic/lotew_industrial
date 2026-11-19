@@ -7,6 +7,7 @@ class AppConstants {
 
   // Default Tenancy & Asset
   static const defaultTenantId = 'hydraulic_lab';
+  static const defaultTenantName = 'UCI Hydraulic Rig';
   static const defaultAssetId = 'hydraulic_rig_01';
 
   // Available Tenants (From Image 1)
