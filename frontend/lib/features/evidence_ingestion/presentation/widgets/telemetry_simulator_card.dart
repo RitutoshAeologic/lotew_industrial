@@ -402,6 +402,17 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                         visualDensity: VisualDensity.compact,
                                       ),
                                     ),
+                                    const SizedBox(width: 4),
+                                    Tooltip(
+                                      message: '12x Ultra Speed: Replays the 60-second cycle in 5 seconds (great for sequential 1 to N runs).',
+                                      waitDuration: const Duration(milliseconds: 200),
+                                      child: ChoiceChip(
+                                        label: const Text('12x Ultra (5s)', style: TextStyle(fontSize: 10)),
+                                        selected: controller.streamSpeedMultiplier.value == 12,
+                                        onSelected: (_) => controller.streamSpeedMultiplier.value = 12,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ),
                                   ],
                                 )),
                           ],
@@ -411,6 +422,10 @@ class TelemetrySimulatorCard extends StatelessWidget {
                         // Active Stream Status & Progress Bar
                         Obx(() {
                           final isStreaming = controller.isStreamingLiveCycle.value;
+                          final isUploading = controller.isUploading.value;
+                          final isSequential = controller.isSequentialMode.value;
+                          final seqCur = controller.sequentialCurrentCycle.value;
+                          final seqTarget = controller.sequentialTargetCycle.value;
                           final elapsed = controller.streamElapsedSeconds.value;
                           final progress = elapsed / 60.0;
                           final phase = controller.currentLivePhase.value;
@@ -423,24 +438,35 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      isStreaming ? 'STREAMING: $phase' : (elapsed == 60 ? 'CYCLE SEALED & COMMITTED' : 'READY TO STREAM 60s CYCLE'),
+                                      isUploading
+                                          ? (isSequential ? 'SEALING CYCLE #$seqCur OF $seqTarget...' : 'SEALING PARQUET & COMMITTING TO SUPABASE...')
+                                          : (isStreaming
+                                              ? (isSequential ? 'RUNNING CYCLE #$seqCur OF $seqTarget: $phase' : 'STREAMING: $phase')
+                                              : (elapsed == 60 ? 'CYCLE SEALED & COMMITTED' : 'READY TO STREAM 60s CYCLE')),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        color: isStreaming ? AppColors.primaryDark : AppColors.slate700,
+                                        color: isUploading
+                                            ? AppColors.sensorTemp
+                                            : (isStreaming ? AppColors.primaryDark : AppColors.slate700),
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  Text('${elapsed}s / 60s', style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold)),
+                                  Text(
+                                    isUploading ? 'SEALING...' : (isSequential ? '${elapsed}s/60s (Cycle $seqCur/$seqTarget)' : '${elapsed}s / 60s'),
+                                    style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: AppSpacing.xs),
                               LinearProgressIndicator(
-                                value: isStreaming || elapsed > 0 ? progress : 0.0,
+                                value: isUploading ? null : (isStreaming || elapsed > 0 ? progress : 0.0),
                                 backgroundColor: AppColors.borderLight,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  elapsed == 60 ? AppColors.success : AppColors.primary,
+                                  isUploading
+                                      ? AppColors.sensorTemp
+                                      : (elapsed == 60 ? AppColors.success : AppColors.primary),
                                 ),
                                 minHeight: 6,
                                 borderRadius: BorderRadius.circular(3),
@@ -522,64 +548,118 @@ class TelemetrySimulatorCard extends StatelessWidget {
                     final isUploading = controller.isUploading.value;
                     final cycleNum = controller.cycleId.value;
 
-                    return Row(
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          flex: 3,
-                          child: Tooltip(
-                            message: isStreaming
-                                ? 'Click to halt machine stream execution'
-                                : 'Start 60-second machine simulation for Cycle #$cycleNum with active sensor streaming',
-                            waitDuration: const Duration(milliseconds: 200),
-                            child: SizedBox(
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: (isStreaming || isUploading)
-                                    ? (isStreaming ? controller.cancelLiveStream : null)
-                                    : controller.startLiveCycleStream,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isStreaming ? AppColors.verdictAct : AppColors.primaryDark,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(isStreaming ? Icons.stop_rounded : Icons.sensors_rounded, color: Colors.white, size: 20),
-                                    const SizedBox(width: AppSpacing.xs),
-                                    Flexible(
-                                      child: Text(
-                                        isStreaming ? 'Stop Stream' : 'Live 60s Stream (#$cycleNum)',
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Tooltip(
+                                message: isStreaming
+                                    ? 'Click to halt machine stream execution'
+                                    : (isUploading
+                                        ? 'Sealing Parquet & committing to Supabase...'
+                                        : (cycleNum > 1
+                                            ? 'Continuous Industrial Run: Streams and seals Cycles 1 through $cycleNum in real-time sequence.'
+                                            : 'Start 60-second machine simulation for Cycle #1 with active sensor streaming.')),
+                                waitDuration: const Duration(milliseconds: 200),
+                                child: SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: isStreaming
+                                        ? controller.cancelLiveStream
+                                        : (isUploading
+                                            ? null
+                                            : (cycleNum > 1
+                                                ? controller.startSequentialStream
+                                                : controller.startLiveCycleStream)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: isStreaming
+                                          ? AppColors.verdictAct
+                                          : (isUploading ? AppColors.slate700 : AppColors.primaryDark),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
-                                  ],
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        if (isUploading) ...[
+                                          const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          ),
+                                          const SizedBox(width: AppSpacing.xs),
+                                          const Flexible(
+                                            child: Text(
+                                              'Sealing Batch...',
+                                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ] else ...[
+                                          Icon(isStreaming ? Icons.stop_rounded : (cycleNum > 1 ? Icons.fast_forward_rounded : Icons.sensors_rounded), color: Colors.white, size: 20),
+                                          const SizedBox(width: AppSpacing.xs),
+                                          Flexible(
+                                            child: Text(
+                                              isStreaming
+                                                  ? 'Stop Stream'
+                                                  : (cycleNum > 1 ? 'Live Stream (1 → $cycleNum)' : 'Live 60s Stream (#1)'),
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              flex: 2,
+                              child: Tooltip(
+                                message: 'Instant Batch Mode: Compresses the 17 sensor streams to Parquet, calculates SHA-256, and commits to ledger immediately (~35 ms)',
+                                waitDuration: const Duration(milliseconds: 200),
+                                child: SizedBox(
+                                  height: 48,
+                                  child: OutlinedButton(
+                                    onPressed: (isStreaming || isUploading) ? null : controller.ingestTelemetryCycle,
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: AppColors.borderLight),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    child: isUploading
+                                        ? const SizedBox(
+                                            height: 18,
+                                            width: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryDark),
+                                          )
+                                        : Text(cycleNum > 1 ? 'Batch #$cycleNum' : 'Instant Batch', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (cycleNum > 1 && !isStreaming && !isUploading) ...[
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: InkWell(
+                              onTap: controller.startLiveCycleStream,
+                              borderRadius: BorderRadius.circular(4),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Text(
+                                  'Or stream only selected cycle without sequence (single 60s cycle)',
+                                  style: TextStyle(fontSize: 11, color: AppColors.primaryDark, decoration: TextDecoration.underline),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          flex: 2,
-                          child: Tooltip(
-                            message: 'Instant Batch Mode: Compresses the 17 sensor streams to Parquet, calculates SHA-256, and commits to ledger immediately (~35 ms)',
-                            waitDuration: const Duration(milliseconds: 200),
-                            child: SizedBox(
-                              height: 48,
-                              child: OutlinedButton(
-                                onPressed: (isStreaming || isUploading) ? null : controller.ingestTelemetryCycle,
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: AppColors.borderLight),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                child: isUploading
-                                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : const Text('Instant Batch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          ),
-                        ),
+                        ],
                       ],
                     );
                   }),

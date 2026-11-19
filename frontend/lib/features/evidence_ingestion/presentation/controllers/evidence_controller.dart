@@ -51,6 +51,11 @@ class EvidenceController extends GetxController {
   final currentLivePhase = 'IDLE'.obs;
   Timer? _streamTimer;
 
+  // ── Sequential Multi-Cycle Streaming (1 -> Target N) ──────────────────────
+  final isSequentialMode = false.obs;
+  final sequentialCurrentCycle = 1.obs;
+  final sequentialTargetCycle = 1.obs;
+
   // ── Raw 17-Sensor ZIP Package Import State (Approach B) ───────────────────
   final isZipImportMode = false.obs;
   final pickedZipBytes = Rxn<Uint8List>();
@@ -162,51 +167,132 @@ class EvidenceController extends GetxController {
   }
 
   // ── 60-Second Real-Time Machine Streaming Implementation ──────────────────
-  void startLiveCycleStream() {
+  void startLiveCycleStream({Future<void> Function()? onCycleDone}) {
     if (isStreamingLiveCycle.value) return;
 
-    final isSevereLeak = (cycleId.value >= 211 && cycleId.value <= 220);
+    final curCycle = cycleId.value;
+    final isSevereLeak = (curCycle >= 211 && curCycle <= 220);
     final basePressure = isSevereLeak ? 110.4 : 156.25;
     final baseFlow = isSevereLeak ? 2.15 : 7.84;
 
     isStreamingLiveCycle.value = true;
     streamElapsedSeconds.value = 0;
-    currentLivePhase.value = 'Phase 1: Piston Extension (Pressure building)';
+    currentLivePhase.value = isSequentialMode.value
+        ? 'Cycle $curCycle/${sequentialTargetCycle.value}: Phase 1 Extension'
+        : 'Phase 1: Piston Extension (Pressure building)';
 
     // Multiplier determines tick interval:
-    // 1x = 1000ms per second (60 real seconds)
-    // 6x = 166ms per second (10 demo seconds)
-    final intervalMs = streamSpeedMultiplier.value == 6 ? 166 : 1000;
+    // 1x = 1000ms (60 real seconds)
+    // 6x = 166ms (10 demo seconds)
+    // 12x = 83ms (5 demo seconds)
+    final intervalMs = streamSpeedMultiplier.value == 12
+        ? 83
+        : (streamSpeedMultiplier.value == 6 ? 166 : 1000);
 
     _streamTimer?.cancel();
-    _streamTimer = Timer.periodic(Duration(milliseconds: intervalMs), (timer) {
+    _streamTimer = Timer.periodic(Duration(milliseconds: intervalMs), (timer) async {
       streamElapsedSeconds.value++;
       final s = streamElapsedSeconds.value;
 
       // Update machine stroke phase & live gauge fluctuation
       if (s <= 15) {
-        currentLivePhase.value = 'Phase 1: Piston Extension Stroke';
+        currentLivePhase.value = isSequentialMode.value
+            ? 'Cycle $curCycle/${sequentialTargetCycle.value}: Phase 1 Extension'
+            : 'Phase 1: Piston Extension Stroke';
         final factor = 0.85 + (s / 15) * 0.15;
         currentLivePressure.value = double.parse((basePressure * factor + (Random().nextDouble() * 0.6 - 0.3)).toStringAsFixed(2));
         currentLiveFlow.value = double.parse((baseFlow * 0.45 + (Random().nextDouble() * 0.2)).toStringAsFixed(2));
       } else if (s <= 35) {
-        currentLivePhase.value = 'Phase 2: High Pressure Work Hold (156 bar)';
+        currentLivePhase.value = isSequentialMode.value
+            ? 'Cycle $curCycle/${sequentialTargetCycle.value}: Phase 2 Work Hold'
+            : 'Phase 2: High Pressure Work Hold (156 bar)';
         currentLivePressure.value = double.parse((basePressure + (Random().nextDouble() * 0.8 - 0.4)).toStringAsFixed(2));
         currentLiveFlow.value = double.parse((baseFlow + (Random().nextDouble() * 0.3 - 0.15)).toStringAsFixed(2));
       } else if (s <= 45) {
-        currentLivePhase.value = 'Phase 3: Piston Retraction Stroke';
+        currentLivePhase.value = isSequentialMode.value
+            ? 'Cycle $curCycle/${sequentialTargetCycle.value}: Phase 3 Retraction'
+            : 'Phase 3: Piston Retraction Stroke';
         currentLivePressure.value = double.parse((basePressure * 0.90 + (Random().nextDouble() * 0.5)).toStringAsFixed(2));
         currentLiveFlow.value = double.parse((baseFlow * 0.80 + (Random().nextDouble() * 0.2)).toStringAsFixed(2));
       } else if (s < 60) {
-        currentLivePhase.value = 'Phase 4: Rest / Cool-Down Stroke';
+        currentLivePhase.value = isSequentialMode.value
+            ? 'Cycle $curCycle/${sequentialTargetCycle.value}: Phase 4 Cool-Down'
+            : 'Phase 4: Rest / Cool-Down Stroke';
         currentLivePressure.value = double.parse((basePressure * 0.78 + (Random().nextDouble() * 0.4)).toStringAsFixed(2));
         currentLiveFlow.value = double.parse((baseFlow * 0.30 + (Random().nextDouble() * 0.1)).toStringAsFixed(2));
       } else {
         // Reached 60 seconds: physical cycle complete!
         timer.cancel();
+        currentLivePhase.value = 'Cycle $curCycle Complete: Sealing Parquet Batch & SHA-256';
+        isUploading.value = true;
         isStreamingLiveCycle.value = false;
-        currentLivePhase.value = 'Cycle Complete: Sealing Parquet Batch & SHA-256';
-        ingestTelemetryCycle();
+        await ingestTelemetryCycle();
+        if (onCycleDone != null) {
+          await onCycleDone();
+        }
+      }
+    });
+  }
+
+  /// Sequential Multi-Cycle Real-Time Execution (Cycle 1 -> Target Cycle)
+  void startSequentialStream() {
+    if (isStreamingLiveCycle.value || isUploading.value) return;
+
+    final target = cycleId.value;
+    if (target <= 1) {
+      startLiveCycleStream();
+      return;
+    }
+
+    isSequentialMode.value = true;
+    sequentialTargetCycle.value = target;
+    sequentialCurrentCycle.value = 1;
+    _runNextSequentialStep();
+  }
+
+  void _runNextSequentialStep() {
+    if (!isSequentialMode.value) return;
+
+    final cur = sequentialCurrentCycle.value;
+    final target = sequentialTargetCycle.value;
+
+    if (cur > target) {
+      isSequentialMode.value = false;
+      isStreamingLiveCycle.value = false;
+      Get.snackbar(
+        'Sequential Run Complete',
+        'Successfully completed and sealed Cycles 1 to $target in real-time sequence.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF10B981),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
+    // Set active cycle to cur
+    cycleId.value = cur;
+    cycleTextController.text = cur.toString();
+    selectedPreset.value = (cur == 1) ? 'CYCLE_1' : (cur == 211 ? 'CYCLE_211' : 'CUSTOM');
+
+    startLiveCycleStream(onCycleDone: () async {
+      if (!isSequentialMode.value) return;
+
+      if (cur < target) {
+        sequentialCurrentCycle.value++;
+        // Short 500ms pause between cycles so user sees the transition
+        await Future.delayed(const Duration(milliseconds: 500));
+        _runNextSequentialStep();
+      } else {
+        isSequentialMode.value = false;
+        Get.snackbar(
+          'Continuous Sequence Complete',
+          'All cycles from #1 to #$target ingested and sealed to Supabase.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: const Color(0xFF10B981),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
       }
     });
   }
@@ -214,6 +300,9 @@ class EvidenceController extends GetxController {
   /// Reset current session to baseline healthy state for a fresh cycle retest
   void resetRetestSession() {
     cancelLiveStream();
+    isSequentialMode.value = false;
+    sequentialCurrentCycle.value = 1;
+    sequentialTargetCycle.value = 1;
     cycleId.value = 1;
     selectedPreset.value = 'CYCLE_1';
     cycleTextController.text = '1';
@@ -227,7 +316,7 @@ class EvidenceController extends GetxController {
     clearSelectedZip();
     errorMessage.value = null;
     inspectionTab.value = 0;
-    loadTimeline();
+    loadTimeline(autoSelectLatest: false);
     Get.snackbar(
       'Session Reset',
       'Ready for fresh retest. Active Rig: hydraulic_rig_01.',
@@ -254,6 +343,7 @@ class EvidenceController extends GetxController {
   void cancelLiveStream() {
     _streamTimer?.cancel();
     isStreamingLiveCycle.value = false;
+    isSequentialMode.value = false;
     currentLivePhase.value = 'Stream Cancelled';
   }
 
@@ -275,9 +365,9 @@ class EvidenceController extends GetxController {
       );
 
       latestTelemetryEvidence.value = evidence;
-      if (!evidenceHistory.any((e) => e.id == evidence.id)) {
-        evidenceHistory.insert(0, evidence);
-      }
+      // Ensure the newly ingested cycle appears at the very top of the evidence timeline
+      evidenceHistory.removeWhere((e) => e.id == evidence.id || (e.isTelemetry && e.cycleId == evidence.cycleId));
+      evidenceHistory.insert(0, evidence);
 
       Get.snackbar(
         'Telemetry Cycle #${cycleId.value} Sealed & Ingested',
@@ -592,7 +682,7 @@ class EvidenceController extends GetxController {
     }
   }
 
-  Future<void> loadTimeline() async {
+  Future<void> loadTimeline({bool autoSelectLatest = true}) async {
     try {
       final items = await _activeRepo.getEvidenceTimeline(
         tenantId: selectedTenant.value,
@@ -600,15 +690,17 @@ class EvidenceController extends GetxController {
       );
       evidenceHistory.assignAll(items);
 
-      for (final it in items) {
-        if (it.isTelemetry && latestTelemetryEvidence.value == null) {
-          latestTelemetryEvidence.value = it;
-        }
-        if (it.evidenceType == 'CSV_TELEMETRY' && latestCsvEvidence.value == null) {
-          latestCsvEvidence.value = it;
-        }
-        if (it.isPdf && latestPdfEvidence.value == null) {
-          latestPdfEvidence.value = it;
+      if (autoSelectLatest) {
+        for (final it in items) {
+          if (it.isTelemetry && latestTelemetryEvidence.value == null) {
+            latestTelemetryEvidence.value = it;
+          }
+          if (it.evidenceType == 'CSV_TELEMETRY' && latestCsvEvidence.value == null) {
+            latestCsvEvidence.value = it;
+          }
+          if (it.isPdf && latestPdfEvidence.value == null) {
+            latestPdfEvidence.value = it;
+          }
         }
       }
     } catch (_) {
@@ -618,15 +710,17 @@ class EvidenceController extends GetxController {
           assetId: selectedAsset.value,
         );
         evidenceHistory.assignAll(mockItems);
-        for (final it in mockItems) {
-          if (it.isTelemetry && latestTelemetryEvidence.value == null) {
-            latestTelemetryEvidence.value = it;
-          }
-          if (it.evidenceType == 'CSV_TELEMETRY' && latestCsvEvidence.value == null) {
-            latestCsvEvidence.value = it;
-          }
-          if (it.isPdf && latestPdfEvidence.value == null) {
-            latestPdfEvidence.value = it;
+        if (autoSelectLatest) {
+          for (final it in mockItems) {
+            if (it.isTelemetry && latestTelemetryEvidence.value == null) {
+              latestTelemetryEvidence.value = it;
+            }
+            if (it.evidenceType == 'CSV_TELEMETRY' && latestCsvEvidence.value == null) {
+              latestCsvEvidence.value = it;
+            }
+            if (it.isPdf && latestPdfEvidence.value == null) {
+              latestPdfEvidence.value = it;
+            }
           }
         }
       }

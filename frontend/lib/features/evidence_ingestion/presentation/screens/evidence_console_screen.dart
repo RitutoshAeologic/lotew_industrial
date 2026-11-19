@@ -233,10 +233,30 @@ class EvidenceConsoleScreen extends StatelessWidget {
             // Responsive Layout: Ingestion Card on Left, Live Inspector on Right
             Obx(() {
               final latestTelemetry = controller.latestTelemetryEvidence.value;
+              final isStreaming = controller.isStreamingLiveCycle.value;
+              final isUploading = controller.isUploading.value;
 
               // Only 17-Sensor Hydraulic Rig Telemetry is active
               Widget rightColumn;
-              if (latestTelemetry != null) {
+              if (isUploading) {
+                rightColumn = _SealingUploadCard(
+                  cycleId: controller.cycleId.value,
+                  isSequential: controller.isSequentialMode.value,
+                  currentStep: controller.sequentialCurrentCycle.value,
+                  totalSteps: controller.sequentialTargetCycle.value,
+                );
+              } else if (isStreaming) {
+                rightColumn = _StreamingLiveMonitorCard(
+                  cycleId: controller.cycleId.value,
+                  phase: controller.currentLivePhase.value,
+                  elapsed: controller.streamElapsedSeconds.value,
+                  pressure: controller.currentLivePressure.value,
+                  flow: controller.currentLiveFlow.value,
+                  isSequential: controller.isSequentialMode.value,
+                  currentStep: controller.sequentialCurrentCycle.value,
+                  totalSteps: controller.sequentialTargetCycle.value,
+                );
+              } else if (latestTelemetry != null) {
                 final selectedTab = controller.inspectionTab.value;
                 rightColumn = Container(
                   decoration: BoxDecoration(
@@ -622,6 +642,271 @@ class _AwaitingEvidenceCard extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SealingUploadCard extends StatelessWidget {
+  final int cycleId;
+  final bool isSequential;
+  final int currentStep;
+  final int totalSteps;
+
+  const _SealingUploadCard({
+    required this.cycleId,
+    this.isSequential = false,
+    this.currentStep = 1,
+    this.totalSteps = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 45, horizontal: AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                strokeWidth: 3.5,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              isSequential
+                  ? 'Sealing Cycle #$cycleId (Batch $currentStep of $totalSteps)'
+                  : 'Sealing 60s Telemetry Cycle #$cycleId',
+              style: AppTextStyles.headingMedium.copyWith(fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Text(
+                'Compressing 43,680 multi-rate data points into ZSTD Parquet & committing forensic SHA-256 ledger to Supabase...',
+                style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.bgLight,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: Column(
+                children: [
+                  const _StepStatusRow(label: '1. Lockstep 17-Sensor Alignment (100Hz/10Hz/1Hz)', isDone: true),
+                  const SizedBox(height: 8),
+                  const _StepStatusRow(label: '2. ZSTD Parquet Compression & SHA-256 Hashing', isDone: true),
+                  const SizedBox(height: 8),
+                  _StepStatusRow(
+                    label: isSequential && currentStep < totalSteps
+                        ? '3. Persisting to Supabase (Next: Cycle #${currentStep + 1})'
+                        : '3. Persisting to Supabase (industrial.evidence_streams)',
+                    isPending: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepStatusRow extends StatelessWidget {
+  final String label;
+  final bool isDone;
+  final bool isPending;
+
+  const _StepStatusRow({
+    required this.label,
+    this.isDone = false,
+    this.isPending = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (isDone)
+          const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success)
+        else if (isPending)
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+          )
+        else
+          const Icon(Icons.radio_button_unchecked_rounded, size: 16, color: AppColors.slate500),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isPending ? FontWeight.bold : FontWeight.w500,
+              color: isPending ? AppColors.primaryDark : (isDone ? AppColors.textPrimary : AppColors.slate600),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StreamingLiveMonitorCard extends StatelessWidget {
+  final int cycleId;
+  final String phase;
+  final int elapsed;
+  final double pressure;
+  final double flow;
+  final bool isSequential;
+  final int currentStep;
+  final int totalSteps;
+
+  const _StreamingLiveMonitorCard({
+    required this.cycleId,
+    required this.phase,
+    required this.elapsed,
+    required this.pressure,
+    required this.flow,
+    this.isSequential = false,
+    this.currentStep = 1,
+    this.totalSteps = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (elapsed / 60.0).clamp(0.0, 1.0);
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.primaryDark, width: 1.5),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      isSequential
+                          ? 'CONTINUOUS RUN • CYCLE #$cycleId OF #$totalSteps'
+                          : 'PHYSICAL TEST RIG EXECUTION • CYCLE #$cycleId',
+                      style: AppTextStyles.labelCaps.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                Text(
+                  isSequential
+                      ? '${elapsed}s/60s (Batch $currentStep/$totalSteps)'
+                      : '${elapsed}s / 60s (${(progress * 100).toInt()}%)',
+                  style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+              backgroundColor: AppColors.borderLight,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryDark),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.slate900,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ACTIVE STROKE PHASE:', style: AppTextStyles.labelCaps.copyWith(color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  Text(phase, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const Divider(color: Colors.white24, height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text('PS1 Pressure', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${pressure.toStringAsFixed(1)} bar',
+                            style: const TextStyle(color: AppColors.sensorPressure, fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      Container(width: 1, height: 30, color: Colors.white24),
+                      Column(
+                        children: [
+                          const Text('FS1 Flow Rate', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${flow.toStringAsFixed(1)} L/min',
+                            style: const TextStyle(color: AppColors.sensorFlow, fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'Streaming 43,680 data points across 17 synchronized channels. Automatic Parquet sealing will trigger at 60s.',
+                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
