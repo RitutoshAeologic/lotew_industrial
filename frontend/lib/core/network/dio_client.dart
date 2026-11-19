@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../constants/app_constants.dart';
 import 'network_exception.dart';
 
@@ -6,9 +7,18 @@ class DioClient {
   late final Dio dio;
 
   DioClient({String? baseUrl}) {
+    String effectiveBaseUrl = baseUrl ?? AppConstants.apiBaseUrl;
+    if (kIsWeb) {
+      final currentOrigin = Uri.base.origin;
+      // If served from a tunnel, reverse proxy, or same port, dynamically bind to current host
+      if (currentOrigin.isNotEmpty && !currentOrigin.contains('localhost:3000') && !currentOrigin.contains('localhost:59604')) {
+        effectiveBaseUrl = currentOrigin;
+      }
+    }
+
     dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl ?? AppConstants.apiBaseUrl,
+        baseUrl: effectiveBaseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
         headers: {

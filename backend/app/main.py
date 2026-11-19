@@ -7,9 +7,11 @@ Complies 100% with platform separation and zero-database-bloat rules.
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .api.v1.evidence import router as evidence_router
 from .core.config import get_settings
@@ -82,6 +84,13 @@ async def health_check():
         storage_mode="SUPABASE_AND_LOCAL" if settings.SUPABASE_URL else "LOCAL_MIRROR",
         timestamp=datetime.now(timezone.utc),
     )
+
+
+# ── Static Flutter Web Serving (Unified Single-Origin Deployment) ──────────────
+frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "build" / "web"
+if frontend_dist.exists() and (frontend_dist / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    logger.info(f"   • Flutter Web Distribution mounted at root: {frontend_dist}")
 
 
 if __name__ == "__main__":
