@@ -301,7 +301,7 @@ class _LatencyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: ms != null ? 'Exact: ${ms!.toStringAsFixed(3)} ms' : 'Not recorded',
+      message: AppFormatters.formatTooltipDuration(ms),
       waitDuration: const Duration(milliseconds: 200),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),

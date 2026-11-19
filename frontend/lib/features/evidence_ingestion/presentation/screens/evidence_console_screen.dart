@@ -561,7 +561,7 @@ class _EvidenceHistoryTable extends StatelessWidget {
                         DataCell(Text('${item.rawFileSha256.substring(0, 16)}...', style: AppTextStyles.monoSmall)),
                         DataCell(Text(item.eventTime != null ? item.eventTime!.toIso8601String().substring(0, 19) : '-')),
                         DataCell(Tooltip(
-                          message: item.processingLatencyMs != null ? '${item.processingLatencyMs!.toStringAsFixed(3)} ms' : 'N/A',
+                          message: AppFormatters.formatTooltipDuration(item.processingLatencyMs),
                           child: Text(AppFormatters.formatDurationMs(item.processingLatencyMs), style: AppTextStyles.monoSmall),
                         )),
                         DataCell(Container(
