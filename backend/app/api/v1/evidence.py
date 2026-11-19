@@ -129,6 +129,38 @@ async def ingest_cycle(
         raise HTTPException(status_code=500, detail=f"Cycle ingestion failed: {str(e)}")
 
 
+@router.post("/upload-rig-zip", summary="Upload Raw 17-Sensor ZIP Package")
+async def upload_rig_zip(
+    file: UploadFile = File(..., description="ZIP archive containing raw .txt sensor files"),
+    tenant_id: str = Form(..., description="Multi-tenant identifier"),
+    asset_id: str = Form(..., description="Asset identifier"),
+    evidence_service: EvidenceService = Depends(get_evidence_service),
+):
+    """
+    Receives and mounts raw 17-sensor TXT files from a ZIP archive:
+    - Extracts PS1.txt, FS1.txt, TS1.txt, etc.
+    - Saves raw ZIP to Supabase Object Storage
+    - Mounts files to test rig volume for immediate cycle streaming
+    """
+    try:
+        file_bytes = await file.read()
+        if not file_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded ZIP archive is empty.")
+
+        res = evidence_service.import_rig_zip_archive(
+            file_bytes=file_bytes,
+            file_name=file.filename or "hydraulic_rig_data.zip",
+            tenant_id=tenant_id,
+            asset_id=asset_id,
+        )
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error importing ZIP dataset: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to extract ZIP archive: {str(e)}")
+
+
 @router.get("/timeline", response_model=List[EvidenceItem], summary="Get Interleaved Machine Timeline")
 async def get_timeline(
     tenant_id: str = Query(default="hydraulic_lab", description="Tenant ID"),

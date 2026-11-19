@@ -190,3 +190,56 @@ class EvidenceService:
         """Fetch single item."""
         return self.database.get_by_id(evidence_id)
 
+    def import_rig_zip_archive(
+        self,
+        file_bytes: bytes,
+        file_name: str,
+        tenant_id: str,
+        asset_id: str,
+    ) -> dict:
+        """
+        Receives a ZIP archive of raw sensor files (e.g. PS1.txt, FS1.txt, etc.).
+        Validates contents, extracts onto server mounted storage directory,
+        and computes cryptographic SHA-256 fingerprint.
+        """
+        import io
+        import zipfile
+        import hashlib
+        from pathlib import Path
+
+        raw_sha256 = hashlib.sha256(file_bytes).hexdigest()
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+                all_files = z.namelist()
+                sensor_files = [f for f in all_files if f.endswith(".txt") and not f.startswith("__MACOSX")]
+
+                if not sensor_files:
+                    raise ValueError("ZIP archive contains no .txt sensor files.")
+
+                dest_dir = self.settings.get_hydraulic_data_path()
+                dest_dir.mkdir(parents=True, exist_ok=True)
+
+                extracted_names = []
+                for f_name in sensor_files:
+                    clean_name = Path(f_name).name
+                    content = z.read(f_name)
+                    (dest_dir / clean_name).write_bytes(content)
+                    extracted_names.append(clean_name)
+
+                # Tiered storage: backup the raw ZIP archive in Supabase Storage
+                zip_storage_path = f"datasets/{tenant_id}/{asset_id}/{raw_sha256[:16]}_{file_name}"
+                self.storage.upload(zip_storage_path, file_bytes, mime_type="application/zip")
+
+                return {
+                    "status": "SUCCESS",
+                    "file_name": file_name,
+                    "sha256": raw_sha256,
+                    "storage_path": zip_storage_path,
+                    "extracted_count": len(extracted_names),
+                    "sensor_files": extracted_names,
+                    "message": f"Successfully extracted and mounted {len(extracted_names)} sensor files to test rig.",
+                }
+        except zipfile.BadZipFile:
+            raise ValueError("Uploaded file is not a valid or readable ZIP archive.")
+

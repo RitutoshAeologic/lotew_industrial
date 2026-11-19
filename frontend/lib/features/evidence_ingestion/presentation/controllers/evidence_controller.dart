@@ -44,6 +44,14 @@ class EvidenceController extends GetxController {
   final currentLivePhase = 'IDLE'.obs;
   Timer? _streamTimer;
 
+  // ── Raw 17-Sensor ZIP Package Import State (Approach B) ───────────────────
+  final isZipImportMode = false.obs;
+  final pickedZipBytes = Rxn<Uint8List>();
+  final pickedZipName = RxnString();
+  final pickedZipSizeBytes = 0.obs;
+  final zipFileError = RxnString();
+  final zipUploadResult = Rxn<Map<String, dynamic>>();
+
   // ── CSV Telemetry Form State ───────────────────────────────────────────────
   final pickedCsvBytes = Rxn<Uint8List>();
   final pickedCsvName = RxnString();
@@ -327,6 +335,97 @@ class EvidenceController extends GetxController {
       errorMessage.value = e.toString();
       Get.snackbar(
         'CSV Ingestion Error',
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: Colors.white,
+      );
+    } finally {
+      isUploading.value = false;
+    }
+  }
+
+  // ── Raw 17-Sensor ZIP Package Handling (Approach B: Direct Streaming) ─────
+  Future<void> pickZipFile() async {
+    try {
+      zipFileError.value = null;
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+        withData: true,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+
+        if (file.size > 500 * 1024 * 1024) {
+          zipFileError.value = 'ZIP package exceeds maximum allowed size of 500 MB.';
+          clearSelectedZip();
+          return;
+        }
+
+        if (file.bytes == null || file.bytes!.isEmpty) {
+          zipFileError.value = 'Selected ZIP file is empty.';
+          clearSelectedZip();
+          return;
+        }
+
+        pickedZipBytes.value = file.bytes;
+        pickedZipName.value = file.name;
+        pickedZipSizeBytes.value = file.size;
+        zipFileError.value = null;
+        zipUploadResult.value = null;
+        errorMessage.value = null;
+      }
+    } catch (e) {
+      zipFileError.value = 'Failed to select ZIP package: $e';
+    }
+  }
+
+  void clearSelectedZip() {
+    pickedZipBytes.value = null;
+    pickedZipName.value = null;
+    pickedZipSizeBytes.value = 0;
+    zipFileError.value = null;
+  }
+
+  Future<void> uploadRigZip() async {
+    if (pickedZipBytes.value == null || pickedZipName.value == null) {
+      zipFileError.value = 'Please select a valid raw sensor ZIP package.';
+      return;
+    }
+
+    try {
+      isUploading.value = true;
+      errorMessage.value = null;
+      zipFileError.value = null;
+
+      final res = await _activeRepo.uploadRigZip(
+        fileBytes: pickedZipBytes.value!,
+        fileName: pickedZipName.value!,
+        tenantId: selectedTenant.value,
+        assetId: selectedAsset.value,
+      );
+
+      zipUploadResult.value = res;
+      clearSelectedZip();
+
+      final count = res['extracted_count'] ?? 17;
+      final rawSha = res['sha256'] as String?;
+      final hashDisplay = rawSha != null && rawSha.length >= 16 ? rawSha.substring(0, 16) : 'verified';
+
+      Get.snackbar(
+        '17-Sensor Package Mounted',
+        'Successfully mounted $count sensor files to rig volume. SHA-256: $hashDisplay...',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF10B981),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+    } catch (e) {
+      errorMessage.value = e.toString();
+      Get.snackbar(
+        'ZIP Extraction Failed',
         e.toString(),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFEF4444),

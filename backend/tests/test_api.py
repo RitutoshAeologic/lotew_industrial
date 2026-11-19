@@ -136,6 +136,36 @@ def test_upload_csv_telemetry(client: TestClient):
     assert item["canonical_data"]["measurements"]["channels"]["TP2_temp"]["median"] == 25.6
 
 
+def test_upload_rig_zip_package(client: TestClient):
+    import io
+    import zipfile
+
+    # Build a test zip containing PS1.txt and FS1.txt
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as z:
+        z.writestr("PS1.txt", "151.2\t151.3\t151.4\n")
+        z.writestr("FS1.txt", "7.8\t7.9\t8.0\n")
+
+    files = {
+        "file": ("raw_hydraulic_package.zip", zip_buffer.getvalue(), "application/zip")
+    }
+    data = {
+        "tenant_id": "hydraulic_lab",
+        "asset_id": "hydraulic_rig_01"
+    }
+
+    response = client.post(
+        "/api/v1/industrial/evidence/upload-rig-zip",
+        files=files,
+        data=data
+    )
+    assert response.status_code == 200
+    res = response.json()
+    assert res["status"] == "SUCCESS"
+    assert res["extracted_count"] == 2
+    assert "PS1.txt" in res["sensor_files"]
+
+
 def test_timeline_retrieval(client: TestClient):
     response = client.get(
         "/api/v1/industrial/evidence/timeline",

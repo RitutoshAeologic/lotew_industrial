@@ -144,3 +144,4 @@ class CsvTelemetryAdapter(BaseIndustryAdapter):
         }
 
         return canonical, parquet_bytes, parquet_sha256, extra_meta
+
