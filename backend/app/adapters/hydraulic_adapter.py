@@ -137,6 +137,16 @@ class HydraulicRigAdapter(BaseIndustryAdapter):
                     expanded = np.pad(expanded, (0, 6000 - len(expanded)), mode="edge")
                 raw_series_dict[sensor_id] = expanded[:6000]
 
+        # Step 1.5: Downsampled 60s Waveforms for Live UI Visualization (1 sample/sec)
+        ps1_raw = raw_series_dict.get("PS1")
+        fs1_raw = raw_series_dict.get("FS1")
+        if ps1_raw is not None and fs1_raw is not None:
+            measurements_dict["waveform_downsampled_60s"] = {
+                "time_sec": list(range(1, 61)),
+                "PS1_pressure_bar": [round(float(v), 2) for v in ps1_raw[::100][:60]],
+                "FS1_flow_lmin": [round(float(v), 2) for v in fs1_raw[::100][:60]],
+            }
+
         # Step 2: Build Polars DataFrame and compress to Parquet (ZSTD)
         time_clock = np.linspace(0.01, 60.0, 6000, dtype=np.float32)
         parquet_dict = {"time_sec": time_clock}

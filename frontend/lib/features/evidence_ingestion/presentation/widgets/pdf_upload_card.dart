@@ -13,35 +13,47 @@ class PdfUploadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = EvidenceController.to;
+    final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.borderLight),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.sm),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
+                    color: AppColors.sensorTemp.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.primaryDark),
+                  child: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.sensorTemp),
                 ),
-                const SizedBox(width: AppSpacing.sm),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Documentary Evidence Ingestion', style: AppTextStyles.headingSmall),
-                      Text('Technician reports, maintenance logs, or repair invoices (PDF)', style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis),
+                      Text(
+                        'Upload human engineering inspection reports, maintenance logs, or repair invoices',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: AppSpacing.md),
             const Divider(),
             const SizedBox(height: AppSpacing.md),
@@ -50,58 +62,87 @@ class PdfUploadCard extends StatelessWidget {
             Obx(() {
               final fileName = controller.pickedPdfName.value;
               final fileSize = controller.pickedPdfSizeBytes.value;
+              final fileError = controller.pdfFileError.value;
 
               if (fileName == null) {
-                return InkWell(
-                  onTap: controller.pickPdfFile,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: AppColors.bgLight,
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InkWell(
+                      onTap: controller.pickPdfFile,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.borderLight, width: 1.5),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: fileError != null ? AppColors.error.withValues(alpha: 0.04) : AppColors.bgLight,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: fileError != null ? AppColors.error : AppColors.borderLight,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 42,
+                              color: fileError != null ? AppColors.error : AppColors.slate600,
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text('Click to Browse or Choose PDF Document', style: AppTextStyles.headingSmall),
+                            const SizedBox(height: AppSpacing.xxs),
+                            Text(
+                              'Supports official inspection PDF documents up to 25 MB',
+                              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.slate600),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text('Click to Browse or Drag & Drop PDF', style: AppTextStyles.headingSmall),
-                        const SizedBox(height: AppSpacing.xxs),
-                        Text('Supports standard inspection PDF documents up to 50MB', style: AppTextStyles.bodySmall),
-                      ],
-                    ),
-                  ),
+                    if (fileError != null) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        fileError,
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.error, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ],
                 );
               }
 
               final kb = (fileSize / 1024).toStringAsFixed(1);
+              final mb = (fileSize / (1024 * 1024)).toStringAsFixed(2);
+              final sizeDisplay = fileSize > 1024 * 1024 ? '$mb MB' : '$kb KB';
+
               return Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withValues(alpha: 0.4),
+                  color: AppColors.sensorTemp.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                  border: Border.all(color: AppColors.sensorTemp.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.description_rounded, color: AppColors.primaryDark),
+                    const Icon(Icons.picture_as_pdf_rounded, color: AppColors.sensorTemp, size: 28),
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(fileName, style: AppTextStyles.headingSmall, overflow: TextOverflow.ellipsis),
-                          Text('$kb KB • Ready for SHA-256 Hashing', style: AppTextStyles.bodySmall),
+                          Text(
+                            '$sizeDisplay • Validated for Cryptographic SHA-256 Hashing',
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+                          ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: AppColors.slate600),
+                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.slate600),
+                      tooltip: 'Remove file',
                       onPressed: controller.clearSelectedPdf,
-                      tooltip: 'Remove selected file',
                     ),
                   ],
                 ),
@@ -110,40 +151,28 @@ class PdfUploadCard extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.lg),
 
-            // Metadata Form
+            // Form Fields: Component & Incident Date
             Row(
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('TARGET ASSET', style: AppTextStyles.labelCaps),
+                      Text('TARGET RIG COMPONENT', style: AppTextStyles.labelCaps),
                       const SizedBox(height: AppSpacing.xs),
                       Obx(() => DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: controller.selectedAsset.value,
-                            items: const [
-                              DropdownMenuItem(value: 'hydraulic_rig_01', child: Text('hydraulic_rig_01', overflow: TextOverflow.ellipsis)),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) controller.selectedAsset.value = val;
-                            },
-                          )),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('COMPONENT AFFECTED', style: AppTextStyles.labelCaps),
-                      const SizedBox(height: AppSpacing.xs),
-                      Obx(() => DropdownButtonFormField<String>(
-                            isExpanded: true,
                             initialValue: controller.selectedComponent.value,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
                             items: AppConstants.hydraulicComponents
-                                .map((c) => DropdownMenuItem(value: c['id'], child: Text(c['name']!, overflow: TextOverflow.ellipsis)))
+                                .map((c) => DropdownMenuItem(
+                                      value: c['id'],
+                                      child: Text(c['name']!, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                                    ))
                                 .toList(),
                             onChanged: (val) {
                               if (val != null) controller.selectedComponent.value = val;
@@ -152,67 +181,44 @@ class PdfUploadCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              ],
-            ),
-
-            const SizedBox(height: AppSpacing.md),
-
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('PROPOSED OPERATIONAL ACTION', style: AppTextStyles.labelCaps),
-                      const SizedBox(height: AppSpacing.xs),
-                      Obx(() => DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: controller.selectedAction.value,
-                            items: AppConstants.proposedActions
-                                .map((a) => DropdownMenuItem(value: a, child: Text(a, overflow: TextOverflow.ellipsis)))
-                                .toList(),
-                            onChanged: (val) {
-                              if (val != null) controller.selectedAction.value = val;
-                            },
-                          )),
-                    ],
-                  ),
-                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('INCIDENT / INSPECTION DATE', style: AppTextStyles.labelCaps),
+                      Text('INCIDENT RECORD DATE', style: AppTextStyles.labelCaps),
                       const SizedBox(height: AppSpacing.xs),
-                      Obx(() {
-                        final formatted = DateFormat('yyyy-MM-dd HH:mm').format(controller.incidentDate.value);
-                        return InkWell(
-                          onTap: () async {
-                            final date = await showDatePicker(
-                              context: context,
-                              initialDate: controller.incidentDate.value,
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2030),
-                            );
-                            if (date != null) {
-                              controller.incidentDate.value = DateTime(
-                                date.year,
-                                date.month,
-                                date.day,
-                                controller.incidentDate.value.hour,
-                                controller.incidentDate.value.minute,
+                      Obx(() => InkWell(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: controller.incidentDate.value,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now(), // Enforce: cannot be future date
                               );
-                            }
-                          },
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              suffixIcon: Icon(Icons.calendar_today_rounded, size: 18),
+                              if (picked != null) {
+                                controller.setIncidentDate(picked);
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: AppColors.borderLight),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    dateFormat.format(controller.incidentDate.value),
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                  const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.slate600),
+                                ],
+                              ),
                             ),
-                            child: Text(formatted, style: AppTextStyles.bodyMedium),
-                          ),
-                        );
-                      }),
+                          )),
                     ],
                   ),
                 ),
@@ -221,46 +227,76 @@ class PdfUploadCard extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.md),
 
-            Text('INSPECTION NOTES / SUMMARY', style: AppTextStyles.labelCaps),
+            // Proposed Action Dropdown
+            Text('TECHNICIAN PROPOSED ACTION', style: AppTextStyles.labelCaps),
+            const SizedBox(height: AppSpacing.xs),
+            Obx(() => DropdownButtonFormField<String>(
+                  initialValue: controller.selectedAction.value,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: AppConstants.proposedActions
+                      .map((a) => DropdownMenuItem(
+                            value: a,
+                            child: Text(a, style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) controller.selectedAction.value = val;
+                  },
+                )),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // Technician Notes
+            Text('ENGINEERING COMMENTARY & REPAIR LOG', style: AppTextStyles.labelCaps),
             const SizedBox(height: AppSpacing.xs),
             TextField(
               controller: controller.notesController,
               maxLines: 2,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Pump seal inspection completed on site. Slight discolouration detected on secondary seal ring.',
+              maxLength: 500,
+              decoration: InputDecoration(
+                hintText: 'e.g. Unusual audible cavitation observed during hold pressure phase...',
+                hintStyle: AppTextStyles.bodySmall,
+                contentPadding: const EdgeInsets.all(12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
 
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
 
             // Ingest Button
             SizedBox(
               width: double.infinity,
-              height: 46,
+              height: 48,
               child: Obx(() {
                 final isUploading = controller.isUploading.value;
                 return ElevatedButton(
                   onPressed: isUploading ? null : controller.uploadPdf,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.slate900,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   child: isUploading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                            SizedBox(width: AppSpacing.md),
+                            Text('Extracting Text & Calculating SHA-256...', style: TextStyle(color: Colors.white)),
+                          ],
                         )
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.shield_outlined, size: 18, color: AppColors.primary),
-                            const SizedBox(width: AppSpacing.sm),
-                            Flexible(
-                              child: Text(
-                                'Compute SHA-256 & Ingest to Evidence Backbone',
-                                style: AppTextStyles.headingSmall.copyWith(color: Colors.white),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                            const Icon(Icons.fingerprint_rounded, color: AppColors.sensorTemp),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text(
+                              'Ingest PDF Evidence & Register Fingerprint',
+                              style: AppTextStyles.headingSmall.copyWith(color: Colors.white, fontSize: 14),
                             ),
                           ],
                         ),

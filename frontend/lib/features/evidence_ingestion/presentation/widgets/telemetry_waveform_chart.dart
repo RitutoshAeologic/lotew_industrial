@@ -3,76 +3,145 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../domain/models/evidence_item_model.dart';
 
 class TelemetryWaveformChart extends StatelessWidget {
   final int cycleId;
   final bool isSevereLeak;
+  final EvidenceItemModel? evidence;
 
   const TelemetryWaveformChart({
     super.key,
     required this.cycleId,
     this.isSevereLeak = false,
+    this.evidence,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Generate 60-second operational curve data points (1 sec interval for visualization)
-    final pressureBase = isSevereLeak ? 110.0 : 151.0;
-    final flowBase = isSevereLeak ? 2.1 : 6.2;
+    // Extract real downsampled points from canonical observation if available
+    List<FlSpot> pressureSpots = [];
+    List<FlSpot> flowSpots = [];
+    double medianPressure = isSevereLeak ? 110.4 : 156.25;
+    double medianFlow = isSevereLeak ? 2.15 : 7.84;
 
-    final pressureSpots = List.generate(60, (i) {
-      // Hydraulic cycle dynamic: Extension (0-15s), High Pressure Hold (15-35s), Retraction (35-45s), Rest (45-60s)
-      double factor;
-      if (i < 15) {
-        factor = 0.85 + (i / 15) * 0.15;
-      } else if (i < 35) {
-        factor = 1.0;
-      } else if (i < 45) {
-        factor = 0.90;
-      } else {
-        factor = 0.75;
+    final measurements = evidence?.canonicalData['measurements'] as Map<String, dynamic>?;
+    final waveform = measurements?['waveform_downsampled_60s'] as Map<String, dynamic>?;
+
+    if (waveform != null &&
+        waveform['PS1_pressure_bar'] is List &&
+        waveform['FS1_flow_lmin'] is List) {
+      final ps1List = waveform['PS1_pressure_bar'] as List;
+      final fs1List = waveform['FS1_flow_lmin'] as List;
+
+      pressureSpots = ps1List.asMap().entries.map((e) {
+        final val = (e.value as num).toDouble();
+        return FlSpot(e.key.toDouble(), val);
+      }).toList();
+
+      flowSpots = fs1List.asMap().entries.map((e) {
+        final val = (e.value as num).toDouble();
+        return FlSpot(e.key.toDouble(), val * 12); // Scaled for chart parity
+      }).toList();
+
+      // Retrieve actual medians if available
+      final pump = (measurements?['components'] as Map<String, dynamic>?)?['pump'] as Map<String, dynamic>?;
+      if (pump != null) {
+        final ps1 = pump['PS1'] as Map<String, dynamic>?;
+        final fs1 = pump['FS1'] as Map<String, dynamic>?;
+        if (ps1 != null && ps1['median'] != null) {
+          medianPressure = (ps1['median'] as num).toDouble();
+        }
+        if (fs1 != null && fs1['median'] != null) {
+          medianFlow = (fs1['median'] as num).toDouble();
+        }
       }
-      return FlSpot(i.toDouble(), pressureBase * factor);
-    });
+    } else {
+      // Physical realistic simulation fallback
+      final baseP = isSevereLeak ? 110.4 : 156.25;
+      final baseF = isSevereLeak ? 2.15 : 7.84;
 
-    final flowSpots = List.generate(60, (i) {
-      double factor = (i >= 15 && i <= 45) ? 1.0 : 0.4;
-      return FlSpot(i.toDouble(), flowBase * factor * 20); // Scaled for chart visual parity
-    });
+      pressureSpots = List.generate(60, (i) {
+        double factor;
+        if (i < 15) {
+          factor = 0.88 + (i / 15) * 0.12;
+        } else if (i < 35) {
+          factor = 1.0;
+        } else if (i < 45) {
+          factor = 0.90;
+        } else {
+          factor = 0.78;
+        }
+        return FlSpot(i.toDouble(), baseP * factor);
+      });
+
+      flowSpots = List.generate(60, (i) {
+        double factor = (i >= 15 && i <= 45) ? 1.0 : 0.35;
+        return FlSpot(i.toDouble(), baseF * factor * 12);
+      });
+    }
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.borderLight),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Wrap(
+            // Chart Header with Live Metrics
+            Wrap(
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: AppSpacing.md,
-              runSpacing: AppSpacing.xs,
+              runSpacing: AppSpacing.sm,
               children: [
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.show_chart_rounded, size: 20, color: AppColors.primary),
-                    SizedBox(width: AppSpacing.sm),
-                    Text('60-Second Cycle Telemetry Waveform Profile', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    const Icon(Icons.show_chart_rounded, size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('60-Second Multi-Rate Operational Waveform (Cycle #$cycleId)', style: AppTextStyles.headingSmall),
                   ],
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _ChartLegend(color: AppColors.sensorPressure, label: 'PS1 Pressure (100 Hz, bar)'),
-                    SizedBox(width: AppSpacing.md),
-                    _ChartLegend(color: AppColors.sensorFlow, label: 'FS1 Flow (10 Hz, scaled L/min)'),
+                    _MetricChip(
+                      label: 'PS1 Median',
+                      value: '${medianPressure.toStringAsFixed(1)} bar',
+                      color: AppColors.sensorPressure,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _MetricChip(
+                      label: 'FS1 Median',
+                      value: '${medianFlow.toStringAsFixed(1)} L/min',
+                      color: AppColors.sensorFlow,
+                    ),
                   ],
                 ),
               ],
             ),
+
             const SizedBox(height: AppSpacing.md),
             const Divider(),
+            const SizedBox(height: AppSpacing.sm),
+
+            // Waveform Legend
+            const Row(
+              children: [
+                _ChartLegend(color: AppColors.sensorPressure, label: 'PS1 Pressure (100 Hz, bar)'),
+                SizedBox(width: AppSpacing.lg),
+                _ChartLegend(color: AppColors.sensorFlow, label: 'FS1 Flow (10 Hz, scaled L/min)'),
+              ],
+            ),
+
             const SizedBox(height: AppSpacing.md),
+
+            // FL Chart
             SizedBox(
               height: 220,
               child: LineChart(
@@ -89,7 +158,7 @@ class TelemetryWaveformChart extends StatelessWidget {
                     rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     bottomTitles: AxisTitles(
-                      axisNameWidget: Text('Time within Cycle (0 to 60 Seconds)', style: AppTextStyles.bodySmall),
+                      axisNameWidget: Text('Time elapsed within 60s cycle (seconds)', style: AppTextStyles.bodySmall),
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 22,
@@ -98,11 +167,11 @@ class TelemetryWaveformChart extends StatelessWidget {
                       ),
                     ),
                     leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
+                      axisNameWidget: Text('Sensor Amplitude', style: AppTextStyles.bodySmall),
+                      sideTitles: const SideTitles(
                         showTitles: true,
-                        reservedSize: 38,
+                        reservedSize: 34,
                         interval: 40,
-                        getTitlesWidget: (val, meta) => Text('${val.toInt()}', style: AppTextStyles.monoSmall.copyWith(fontSize: 10)),
                       ),
                     ),
                   ),
@@ -111,25 +180,27 @@ class TelemetryWaveformChart extends StatelessWidget {
                     border: Border.all(color: AppColors.borderLight),
                   ),
                   minX: 0,
-                  maxX: 60,
+                  maxX: 59,
                   minY: 0,
-                  maxY: 180,
+                  maxY: 200,
                   lineBarsData: [
                     LineChartBarData(
                       spots: pressureSpots,
                       isCurved: true,
+                      curveSmoothness: 0.2,
                       color: AppColors.sensorPressure,
-                      barWidth: 2.5,
+                      barWidth: 2.2,
                       isStrokeCapRound: true,
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: AppColors.sensorPressure.withValues(alpha: 0.08),
+                        color: AppColors.sensorPressure.withValues(alpha: 0.10),
                       ),
                     ),
                     LineChartBarData(
                       spots: flowSpots,
                       isCurved: true,
+                      curveSmoothness: 0.2,
                       color: AppColors.sensorFlow,
                       barWidth: 2,
                       isStrokeCapRound: true,
@@ -146,6 +217,37 @@ class TelemetryWaveformChart extends StatelessWidget {
   }
 }
 
+class _MetricChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MetricChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label: ', style: const TextStyle(fontSize: 11, color: AppColors.slate600)),
+          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+}
+
 class _ChartLegend extends StatelessWidget {
   final Color color;
   final String label;
@@ -155,14 +257,11 @@ class _ChartLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
+        Container(width: 12, height: 4, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: AppSpacing.xs),
-        Text(label, style: AppTextStyles.bodySmall),
+        Text(label, style: AppTextStyles.bodySmall.copyWith(fontSize: 11, fontWeight: FontWeight.w500)),
       ],
     );
   }
