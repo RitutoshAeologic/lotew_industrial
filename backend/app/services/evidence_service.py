@@ -6,6 +6,7 @@ Enforces deduplication, cryptographic hashing, and millisecond latency calculati
 
 from datetime import datetime
 import logging
+from pathlib import Path
 from typing import List, Optional
 
 from ..adapters.hydraulic_adapter import HydraulicRigAdapter
@@ -129,11 +130,68 @@ class EvidenceService:
 
         return self.database.save_evidence(evidence_item)
 
+    @staticmethod
+    def evaluate_physical_profile(profile_path: Path, cycle_id: int) -> Optional[str]:
+        """
+        Evaluates all 4 physical component failure columns from UCI ZeMA rig profile.txt (ISO 13374):
+          cols[0] = Cooler condition (3: near failure, 20: reduced efficiency, 100: full)
+          cols[1] = Valve condition (73: severe lag, 80: small lag, 100: optimal)
+          cols[2] = Internal pump leakage (0: none, 1: weak, 2: severe)
+          cols[3] = Hydraulic accumulator (90: close to failure, 100: reduced, 130: optimal)
+        """
+        if not profile_path.exists():
+            return None
+        import linecache
+        line = linecache.getline(str(profile_path), cycle_id).strip()
+        if not line:
+            return None
+        cols = line.split()
+        if len(cols) >= 4:
+            try:
+                cooler_cond = int(cols[0])
+                valve_cond = int(cols[1])
+                leak_cond = int(cols[2])
+                accumulator_cond = int(cols[3])
+
+                if leak_cond > 0:
+                    return "DEGRADED_LEAK"
+                if cooler_cond <= 20:
+                    return "DEGRADED_COOLER"
+                if valve_cond <= 80:
+                    return "DEGRADED_VALVE"
+                if accumulator_cond <= 100:
+                    return "DEGRADED_ACCUMULATOR"
+            except ValueError:
+                pass
+        return None
+
+    def determine_overall_quality(self, signal_quality: str, profile_path: Path, cycle_id: int) -> str:
+        """
+        Combines signal-level quality analysis with multi-component rig physical condition.
+        Prioritizes sensor corruption/spikes/stiction over mechanical wear.
+        """
+        # Priority 1: Critical sensor signal anomalies
+        if signal_quality in ["CORRUPT_PAYLOAD", "DATA_LOSS_CRITICAL", "DISTORTED_OUT_OF_BOUNDS", "SENSOR_FLATLINE", "DATA_LOSS_PARTIAL"]:
+            return signal_quality
+
+        # Priority 2: Physical component wear from profile.txt
+        physical_fault = self.evaluate_physical_profile(profile_path, cycle_id)
+        if physical_fault:
+            return physical_fault
+
+        # Fallback check for simulated presets if profile.txt is not present
+        if cycle_id == 211 or (211 <= cycle_id <= 220):
+            return "DEGRADED_LEAK"
+
+        return "NOMINAL"
+
     def ingest_telemetry_cycle(
         self,
         cycle_id: int,
         tenant_id: str = "hydraulic_lab",
         asset_id: str = "hydraulic_rig_01",
+        simulate_packet_loss_pct: float = 0.0,
+        simulate_distortion: Optional[str] = None,
     ) -> EvidenceItem:
         """
         Processes 17-sensor telemetry cycle.
@@ -149,6 +207,8 @@ class EvidenceService:
             cycle_id=cycle_id,
             tenant_id=tenant_id,
             asset_id=asset_id,
+            simulate_packet_loss_pct=simulate_packet_loss_pct,
+            simulate_distortion=simulate_distortion,
         )
 
         # Tiered Storage: raw multi-rate signals saved as compressed Parquet
@@ -156,24 +216,23 @@ class EvidenceService:
         storage_path = f"telemetry/{tenant_id}/{asset_id}/{raw_file_name}"
         self.storage.upload(storage_path, parquet_bytes, mime_type="application/x-parquet")
 
-        # Determine quality / health condition flag
-        # (Cycle 211 in the dataset is severe pump leakage)
-        # Previous hardcoded check:
+        # PREVIOUS HARDCODED PUMP-LEAK ONLY CHECK (Preserved as comment):
         # quality_flag = "NOMINAL"
-        # if cycle_id == 211 or (cycle_id >= 211 and cycle_id <= 220):
+        # profile_path = self.hydraulic_adapter.data_dir / "profile.txt"
+        # if profile_path.exists():
+        #     import linecache
+        #     line = linecache.getline(str(profile_path), cycle_id).strip()
+        #     if line:
+        #         cols = line.split()
+        #         if len(cols) >= 3 and int(cols[2]) > 0:
+        #             quality_flag = "DEGRADED_LEAK"
+        # elif cycle_id == 211 or (211 <= cycle_id <= 220):
         #     quality_flag = "DEGRADED_LEAK"
 
-        quality_flag = "NOMINAL"
+        # NEW MULTI-TIER QUALITY DETERMINATION (Signal anomalies + 4 Rig components):
         profile_path = self.hydraulic_adapter.data_dir / "profile.txt"
-        if profile_path.exists():
-            import linecache
-            line = linecache.getline(str(profile_path), cycle_id).strip()
-            if line:
-                cols = line.split()
-                if len(cols) >= 3 and int(cols[2]) > 0:
-                    quality_flag = "DEGRADED_LEAK"
-        elif cycle_id == 211 or (211 <= cycle_id <= 220):
-            quality_flag = "DEGRADED_LEAK"
+        signal_quality = extra_meta.get("quality_flag", "NOMINAL")
+        quality_flag = self.determine_overall_quality(signal_quality, profile_path, cycle_id)
 
         evidence_item = EvidenceItem(
             tenant_id=tenant_id,
@@ -219,52 +278,62 @@ class EvidenceService:
         newly_created_items: List[EvidenceItem] = []
         uploads_to_execute = []
 
-        # 2. Extract and prepare new cycles
+        # 2. Extract and prepare new cycles (with per-cycle exception isolation)
         for cycle_id in cycles_to_process:
-            canonical, parquet_bytes, raw_sha256, extra_meta = self.hydraulic_adapter.extract_canonical(
-                cycle_id=cycle_id,
-                tenant_id=tenant_id,
-                asset_id=asset_id,
-            )
+            try:
+                canonical, parquet_bytes, raw_sha256, extra_meta = self.hydraulic_adapter.extract_canonical(
+                    cycle_id=cycle_id,
+                    tenant_id=tenant_id,
+                    asset_id=asset_id,
+                )
 
-            raw_file_name = f"cycle_{cycle_id:04d}.parquet"
-            storage_path = f"telemetry/{tenant_id}/{asset_id}/{raw_file_name}"
-            uploads_to_execute.append((storage_path, parquet_bytes))
+                raw_file_name = f"cycle_{cycle_id:04d}.parquet"
+                storage_path = f"telemetry/{tenant_id}/{asset_id}/{raw_file_name}"
+                uploads_to_execute.append((storage_path, parquet_bytes))
 
-            quality_flag = "NOMINAL"
-            if has_profile:
-                line = linecache.getline(str(profile_path), cycle_id).strip()
-                if line:
-                    cols = line.split()
-                    if len(cols) >= 3 and int(cols[2]) > 0:
-                        quality_flag = "DEGRADED_LEAK"
-            elif cycle_id == 211 or (211 <= cycle_id <= 220):
-                quality_flag = "DEGRADED_LEAK"
+                # PREVIOUS RANGE EVALUATION (Preserved as comment):
+                # quality_flag = "NOMINAL"
+                # if has_profile:
+                #     line = linecache.getline(str(profile_path), cycle_id).strip()
+                #     if line:
+                #         cols = line.split()
+                #         if len(cols) >= 3 and int(cols[2]) > 0:
+                #             quality_flag = "DEGRADED_LEAK"
+                # elif cycle_id == 211 or (211 <= cycle_id <= 220):
+                #     quality_flag = "DEGRADED_LEAK"
 
-            evidence_item = EvidenceItem(
-                tenant_id=tenant_id,
-                asset_id=asset_id,
-                component_id="system",
-                evidence_type="TELEMETRY_CYCLE",
-                cycle_id=cycle_id,
-                raw_file_name=raw_file_name,
-                raw_storage_path=storage_path,
-                raw_file_sha256=raw_sha256,
-                event_time=canonical.timestamps.event_time,
-                ingestion_time=canonical.timestamps.ingestion_time,
-                available_time=canonical.timestamps.available_time,
-                ingestion_latency_ms=canonical.timestamps.ingestion_latency_ms,
-                processing_latency_ms=canonical.timestamps.processing_latency_ms,
-                quality_flag=quality_flag,
-                canonical_data=canonical.model_dump(by_alias=True, mode="json"),
-            )
-            newly_created_items.append(evidence_item)
+                signal_quality = extra_meta.get("quality_flag", "NOMINAL")
+                quality_flag = self.determine_overall_quality(signal_quality, profile_path, cycle_id)
 
-        # 3. Concurrent Storage Uploads (8 threads)
+                evidence_item = EvidenceItem(
+                    tenant_id=tenant_id,
+                    asset_id=asset_id,
+                    component_id="system",
+                    evidence_type="TELEMETRY_CYCLE",
+                    cycle_id=cycle_id,
+                    raw_file_name=raw_file_name,
+                    raw_storage_path=storage_path,
+                    raw_file_sha256=raw_sha256,
+                    event_time=canonical.timestamps.event_time,
+                    ingestion_time=canonical.timestamps.ingestion_time,
+                    available_time=canonical.timestamps.available_time,
+                    ingestion_latency_ms=canonical.timestamps.ingestion_latency_ms,
+                    processing_latency_ms=canonical.timestamps.processing_latency_ms,
+                    quality_flag=quality_flag,
+                    canonical_data=canonical.model_dump(by_alias=True, mode="json"),
+                )
+                newly_created_items.append(evidence_item)
+            except Exception as e:
+                logger.error(f"Error processing cycle {cycle_id} in range batch: {e}", exc_info=True)
+
+        # 3. Concurrent Storage Uploads (8 threads with per-task exception isolation)
         if uploads_to_execute:
             def _upload_task(task):
                 path, data = task
-                self.storage.upload(path, data, mime_type="application/x-parquet")
+                try:
+                    self.storage.upload(path, data, mime_type="application/x-parquet")
+                except Exception as e:
+                    logger.warning(f"Storage upload failed for {path}: {e}. Local mirror preserved.")
 
             with ThreadPoolExecutor(max_workers=8) as executor:
                 list(executor.map(_upload_task, uploads_to_execute))
@@ -297,12 +366,21 @@ class EvidenceService:
         return self.database.get_timeline(tenant_id, asset_id)
 
     def clear_telemetry(self, tenant_id: str = "hydraulic_lab", asset_id: str = "hydraulic_rig_01") -> dict:
-        """Purges all telemetry cycles from both Supabase database and memory cache."""
+        """Purges all telemetry cycles from Supabase database, memory cache, and object storage."""
         count = self.database.delete_telemetry_records(tenant_id, asset_id)
+
+        # Purge Parquet files from cloud storage and local mirror
+        storage_deleted = 0
+        try:
+            storage_deleted = self.storage.delete_prefix(f"telemetry/{tenant_id}/{asset_id}/")
+        except Exception as e:
+            logger.warning(f"Failed deleting storage files for {tenant_id}/{asset_id}: {e}")
+
         return {
             "status": "SUCCESS",
-            "message": f"Successfully deleted {count} telemetry cycles from Supabase and memory.",
+            "message": f"Successfully deleted {count} telemetry cycles from Supabase/memory and {storage_deleted} storage files.",
             "deleted_count": count,
+            "storage_deleted_count": storage_deleted,
             "tenant_id": tenant_id,
             "asset_id": asset_id,
         }

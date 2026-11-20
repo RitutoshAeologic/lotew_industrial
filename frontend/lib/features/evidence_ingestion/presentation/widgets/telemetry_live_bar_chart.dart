@@ -28,13 +28,28 @@ class TelemetryLiveBarChart extends StatelessWidget {
     const int binSize = 50;
     final int binCount = (totalCycles / binSize).ceil(); // 45 bins
 
+    // PREVIOUS BINARY COUNT LOGIC (Preserved as comment):
+    // int nominalCount = 0;
+    // int degradedCount = 0;
+    // cycleQualityMap.forEach((_, flag) {
+    //   if (flag == 'NOMINAL') {
+    //     nominalCount++;
+    //   } else {
+    //     degradedCount++;
+    //   }
+    // });
+
+    // NEW 6-TIER QUALITY HIERARCHY ACCUMULATORS:
     int nominalCount = 0;
-    int degradedCount = 0;
+    int faultCount = 0;
+    int anomalyCount = 0;
     cycleQualityMap.forEach((_, flag) {
       if (flag == 'NOMINAL') {
         nominalCount++;
+      } else if (flag.startsWith('DEGRADED_')) {
+        faultCount++;
       } else {
-        degradedCount++;
+        anomalyCount++;
       }
     });
 
@@ -48,28 +63,57 @@ class TelemetryLiveBarChart extends StatelessWidget {
       final int binEnd = (i + 1) * binSize > totalCycles ? totalCycles : (i + 1) * binSize;
 
       int ingestedInBin = 0;
-      bool hasLeak = false;
+      bool hasRedAnomaly = false;
+      bool hasFlatline = false;
+      bool hasPacketLoss = false;
+      bool hasPhysicalFault = false;
 
       for (int c = binStart; c <= binEnd; c++) {
         if (cycleQualityMap.containsKey(c)) {
           ingestedInBin++;
-          if (cycleQualityMap[c] != 'NOMINAL') {
-            hasLeak = true;
+          final flag = cycleQualityMap[c] ?? 'NOMINAL';
+          if (flag == 'CORRUPT_PAYLOAD' || flag == 'DATA_LOSS_CRITICAL' || flag == 'DISTORTED_OUT_OF_BOUNDS') {
+            hasRedAnomaly = true;
+          } else if (flag == 'SENSOR_FLATLINE') {
+            hasFlatline = true;
+          } else if (flag == 'DATA_LOSS_PARTIAL') {
+            hasPacketLoss = true;
+          } else if (flag.startsWith('DEGRADED_')) {
+            hasPhysicalFault = true;
           }
         }
       }
 
       final bool isCurrentBin = isStreaming && currentCycle >= binStart && currentCycle <= binEnd;
 
+      // PREVIOUS BINARY COLORING:
+      // Color barColor;
+      // if (isCurrentBin) {
+      //   barColor = AppColors.primary;
+      // } else if (ingestedInBin == 0) {
+      //   barColor = AppColors.slate300.withValues(alpha: 0.3);
+      // } else if (hasLeak) {
+      //   barColor = AppColors.warning;
+      // } else {
+      //   barColor = AppColors.success;
+      // }
+
+      // NEW 6-TIER VISUAL CODING:
       Color barColor;
       if (isCurrentBin) {
-        barColor = AppColors.primary; // Cyan active
+        barColor = AppColors.primary; // Cyan active streaming
       } else if (ingestedInBin == 0) {
         barColor = AppColors.slate300.withValues(alpha: 0.3); // Pending
-      } else if (hasLeak) {
-        barColor = AppColors.warning; // Amber leak detected
+      } else if (hasRedAnomaly) {
+        barColor = const Color(0xFFEF4444); // Red: Out-of-bounds spike or critical corruption
+      } else if (hasFlatline) {
+        barColor = const Color(0xFFA855F7); // Purple: Sensor stiction / dead channel
+      } else if (hasPacketLoss) {
+        barColor = const Color(0xFFF97316); // Orange: Imputed packet drop
+      } else if (hasPhysicalFault) {
+        barColor = AppColors.warning; // Amber: Mechanical degradation (Leak, Cooler, Valve, Accumulator)
       } else {
-        barColor = AppColors.success; // Emerald healthy
+        barColor = AppColors.success; // Emerald healthy baseline
       }
 
       barGroups.add(
@@ -124,7 +168,11 @@ class TelemetryLiveBarChart extends StatelessWidget {
                 children: [
                   _MetricBadge(label: 'Nominal', count: nominalCount, color: AppColors.success),
                   const SizedBox(width: AppSpacing.xs),
-                  _MetricBadge(label: 'Degraded', count: degradedCount, color: AppColors.warning),
+                  _MetricBadge(label: 'Rig Faults', count: faultCount, color: AppColors.warning),
+                  if (anomalyCount > 0) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    _MetricBadge(label: 'Anomalies', count: anomalyCount, color: const Color(0xFFEF4444)),
+                  ],
                   if (throughput > 0) ...[
                     const SizedBox(width: AppSpacing.xs),
                     _MetricBadge(label: 'Rate', text: '$throughput cyc/s', color: AppColors.primary),
@@ -145,7 +193,7 @@ class TelemetryLiveBarChart extends StatelessWidget {
                     value: progressPct / 100.0,
                     backgroundColor: AppColors.borderLight,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      degradedCount > 0 ? AppColors.warning : AppColors.primary,
+                      (faultCount > 0 || anomalyCount > 0) ? AppColors.warning : AppColors.primary,
                     ),
                     minHeight: 6,
                   ),

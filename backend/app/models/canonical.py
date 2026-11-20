@@ -88,6 +88,8 @@ class IngestCycleRequest(BaseModel):
     cycle_id: int = Field(..., ge=1, le=2205, description="UCI Hydraulic Operational Cycle Number (1 to 2205)")
     tenant_id: str = Field(default="hydraulic_lab", description="Logical multi-tenant identifier")
     asset_id: str = Field(default="hydraulic_rig_01", description="Monitored industrial rig ID")
+    simulate_packet_loss_pct: float = Field(default=0.0, ge=0.0, le=100.0, description="Optional packet loss simulation percentage")
+    simulate_distortion: Optional[str] = Field(default=None, description="Optional signal distortion simulation ('SPIKE' | 'FLATLINE')")
 
 
 class IngestRangeRequest(BaseModel):

@@ -80,3 +80,51 @@ class StorageService:
 
         return None
 
+    def delete_prefix(self, prefix: str) -> int:
+        """
+        Purges all object storage files matching prefix from both Supabase and local mirror.
+        Prevents orphaned Parquet binaries from accumulating in cloud storage.
+        """
+        import shutil
+
+        deleted_remote_count = 0
+        clean_folder = prefix.strip("/")
+
+        # 1. Purge from Supabase Storage
+        if self._supabase_client:
+            try:
+                while True:
+                    items = self._supabase_client.storage.from_(self.bucket).list(clean_folder, {"limit": 100})
+                    if not items:
+                        break
+                    file_paths = []
+                    for item in items:
+                        name = item.get("name")
+                        if name:
+                            file_paths.append(f"{clean_folder}/{name}")
+                    if not file_paths:
+                        break
+                    self._supabase_client.storage.from_(self.bucket).remove(file_paths)
+                    deleted_remote_count += len(file_paths)
+                    logger.info(f"Deleted batch of {len(file_paths)} files from Supabase bucket '{self.bucket}' under '{clean_folder}'.")
+                    if len(items) < 100:
+                        break
+            except Exception as e:
+                logger.warning(f"Failed deleting prefix '{prefix}' from Supabase Storage: {e}")
+
+        # 2. Purge from local mirror directory
+        deleted_local_count = 0
+        local_dir = self.local_root / clean_folder
+        if local_dir.exists():
+            if local_dir.is_dir():
+                for f in local_dir.rglob("*"):
+                    if f.is_file():
+                        deleted_local_count += 1
+                shutil.rmtree(local_dir, ignore_errors=True)
+            elif local_dir.is_file():
+                deleted_local_count += 1
+                local_dir.unlink()
+            logger.info(f"Purged local mirror directory '{local_dir}' ({deleted_local_count} files).")
+
+        return max(deleted_remote_count, deleted_local_count)
+

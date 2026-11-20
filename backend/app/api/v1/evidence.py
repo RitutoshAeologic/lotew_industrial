@@ -120,6 +120,8 @@ async def ingest_cycle(
             cycle_id=request.cycle_id,
             tenant_id=request.tenant_id,
             asset_id=request.asset_id,
+            simulate_packet_loss_pct=request.simulate_packet_loss_pct,
+            simulate_distortion=request.simulate_distortion,
         )
         return item
     except ValueError as ve:

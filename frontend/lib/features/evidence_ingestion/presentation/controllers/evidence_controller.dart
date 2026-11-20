@@ -324,14 +324,27 @@ class EvidenceController extends GetxController {
         }
         cycleQualityMap.addAll(newChunkQuality);
 
-        // Upsert into evidence history
+        // Batch upsert into evidence history to avoid quadratic shifting and reactive storms
+        // PREVIOUS SEQUENTIAL INSERT:
+        // for (final item in chunkItems) {
+        //   final existingIdx = evidenceHistory.indexWhere((e) => e.isTelemetry && e.cycleId == item.cycleId);
+        //   if (existingIdx >= 0) {
+        //     evidenceHistory[existingIdx] = item;
+        //   } else {
+        //     evidenceHistory.insert(0, item);
+        //   }
+        // }
+        final List<EvidenceItemModel> toAdd = [];
         for (final item in chunkItems) {
           final existingIdx = evidenceHistory.indexWhere((e) => e.isTelemetry && e.cycleId == item.cycleId);
           if (existingIdx >= 0) {
             evidenceHistory[existingIdx] = item;
           } else {
-            evidenceHistory.insert(0, item);
+            toAdd.add(item);
           }
+        }
+        if (toAdd.isNotEmpty) {
+          evidenceHistory.insertAll(0, toAdd.reversed);
         }
 
         if (chunkItems.isNotEmpty) {

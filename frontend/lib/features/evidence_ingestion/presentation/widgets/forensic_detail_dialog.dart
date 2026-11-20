@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../domain/models/evidence_item_model.dart';
 import 'canonical_json_viewer.dart';
 
@@ -275,14 +276,20 @@ class _ForensicDetailDialogState extends State<ForensicDetailDialog> {
               Expanded(
                 child: _LatencyBox(
                   label: 'Ingestion Latency (T2 - T1)',
-                  value: item.ingestionLatencyMs != null ? '${item.ingestionLatencyMs!.toStringAsFixed(1)} ms' : 'Historical Replay',
+                  // PREVIOUS VULNERABLE DIRECT DISPLAY:
+                  // value: item.ingestionLatencyMs != null ? '${item.ingestionLatencyMs!.toStringAsFixed(1)} ms' : 'Historical Replay',
+                  value: (item.isTelemetry || item.ingestionLatencyMs == null || item.ingestionLatencyMs! >= 86400000.0)
+                      ? 'N/A (Bench Replay)'
+                      : AppFormatters.formatDurationMs(item.ingestionLatencyMs),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _LatencyBox(
                   label: 'Processing Latency (T3 - T2)',
-                  value: item.processingLatencyMs != null ? '${item.processingLatencyMs!.toStringAsFixed(2)} ms' : 'N/A',
+                  // PREVIOUS:
+                  // value: item.processingLatencyMs != null ? '${item.processingLatencyMs!.toStringAsFixed(2)} ms' : 'N/A',
+                  value: AppFormatters.formatDurationMs(item.processingLatencyMs),
                 ),
               ),
             ],

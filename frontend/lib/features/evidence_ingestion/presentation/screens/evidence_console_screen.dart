@@ -1338,11 +1338,21 @@ class _EvidenceHistoryTableState extends State<_EvidenceHistoryTable> {
                     ),
                     const SizedBox(width: 6),
                     _FilterChipButton(
-                      label: 'Degraded Leaks',
+                      label: 'Rig Faults',
                       color: AppColors.warning,
-                      isSelected: _selectedCondition == 'DEGRADED_LEAK',
+                      isSelected: _selectedCondition == 'FAULTS',
                       onTap: () => setState(() {
-                        _selectedCondition = 'DEGRADED_LEAK';
+                        _selectedCondition = 'FAULTS';
+                        _currentPage = 0;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterChipButton(
+                      label: 'Signal Anomalies',
+                      color: const Color(0xFFEF4444),
+                      isSelected: _selectedCondition == 'ANOMALIES',
+                      onTap: () => setState(() {
+                        _selectedCondition = 'ANOMALIES';
                         _currentPage = 0;
                       }),
                     ),
@@ -1407,9 +1417,20 @@ class _EvidenceHistoryTableState extends State<_EvidenceHistoryTable> {
               // Apply filtering
               final query = _searchController.text.trim().toLowerCase();
               final filtered = allTelemetry.where((item) {
-                if (_selectedCondition != 'ALL' && item.qualityFlag != _selectedCondition) {
+                // PREVIOUS DIRECT EQUALITY:
+                // if (_selectedCondition != 'ALL' && item.qualityFlag != _selectedCondition) {
+                //   return false;
+                // }
+                if (_selectedCondition == 'NOMINAL' && item.qualityFlag != 'NOMINAL') {
+                  return false;
+                } else if (_selectedCondition == 'FAULTS' && !item.qualityFlag.startsWith('DEGRADED_')) {
+                  return false;
+                } else if (_selectedCondition == 'ANOMALIES' && (item.qualityFlag == 'NOMINAL' || item.qualityFlag.startsWith('DEGRADED_'))) {
+                  return false;
+                } else if (_selectedCondition != 'ALL' && _selectedCondition != 'NOMINAL' && _selectedCondition != 'FAULTS' && _selectedCondition != 'ANOMALIES' && item.qualityFlag != _selectedCondition) {
                   return false;
                 }
+
                 if (query.isNotEmpty) {
                   final matchCycle = item.cycleId?.toString().contains(query) ?? false;
                   final matchSha = item.rawFileSha256.toLowerCase().contains(query);
@@ -1464,7 +1485,19 @@ class _EvidenceHistoryTableState extends State<_EvidenceHistoryTable> {
                               DataColumn(label: Text('ACTIONS (POP-UP / VIEW)')),
                             ],
                             rows: pageItems.map((item) {
-                              final isNominal = item.qualityFlag == 'NOMINAL';
+                              final flag = item.qualityFlag;
+                              Color flagColor;
+                              if (flag == 'NOMINAL') {
+                                flagColor = AppColors.success;
+                              } else if (flag.startsWith('DEGRADED_')) {
+                                flagColor = AppColors.warning;
+                              } else if (flag.startsWith('DATA_LOSS_')) {
+                                flagColor = const Color(0xFFF97316);
+                              } else if (flag == 'SENSOR_FLATLINE') {
+                                flagColor = const Color(0xFFA855F7);
+                              } else {
+                                flagColor = const Color(0xFFEF4444);
+                              }
                               return DataRow(
                                 cells: [
                                   DataCell(Row(
@@ -1513,16 +1546,16 @@ class _EvidenceHistoryTableState extends State<_EvidenceHistoryTable> {
                                   DataCell(Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: isNominal ? AppColors.success.withValues(alpha: 0.15) : AppColors.warning.withValues(alpha: 0.15),
+                                      color: flagColor.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: isNominal ? AppColors.success : AppColors.warning, width: 0.8),
+                                      border: Border.all(color: flagColor, width: 0.8),
                                     ),
                                     child: Text(
                                       item.qualityFlag,
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
-                                        color: isNominal ? AppColors.success : AppColors.warning,
+                                        color: flagColor,
                                       ),
                                     ),
                                   )),
