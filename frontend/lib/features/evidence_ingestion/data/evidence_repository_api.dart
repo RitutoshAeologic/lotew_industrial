@@ -30,6 +30,27 @@ class EvidenceRepositoryApi implements EvidenceRepository {
   }
 
   @override
+  Future<List<EvidenceItemModel>> ingestTelemetryRange({
+    required int startCycle,
+    required int endCycle,
+    required String tenantId,
+    required String assetId,
+  }) async {
+    final response = await dioClient.dio.post(
+      ApiEndpoints.ingestRange,
+      data: {
+        'start_cycle': startCycle,
+        'end_cycle': endCycle,
+        'tenant_id': tenantId,
+        'asset_id': assetId,
+      },
+      options: Options(receiveTimeout: const Duration(seconds: 180)),
+    );
+    final list = response.data as List<dynamic>;
+    return list.map((e) => EvidenceItemModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  @override
   Future<EvidenceItemModel> uploadCsv({
     required Uint8List fileBytes,
     required String fileName,
@@ -110,5 +131,19 @@ class EvidenceRepositoryApi implements EvidenceRepository {
     );
     final list = response.data as List<dynamic>;
     return list.map((item) => EvidenceItemModel.fromJson(item as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<void> clearTelemetry({
+    required String tenantId,
+    required String assetId,
+  }) async {
+    await dioClient.dio.delete(
+      '/api/v1/industrial/evidence/clear-telemetry',
+      queryParameters: {
+        'tenant_id': tenantId,
+        'asset_id': assetId,
+      },
+    );
   }
 }

@@ -12,6 +12,14 @@ abstract class EvidenceRepository {
     required String assetId,
   });
 
+  /// Ingests a range of multi-sensor telemetry cycles from the test rig.
+  Future<List<EvidenceItemModel>> ingestTelemetryRange({
+    required int startCycle,
+    required int endCycle,
+    required String tenantId,
+    required String assetId,
+  });
+
   /// Ingests continuous multi-sensor CSV telemetry.
   Future<EvidenceItemModel> uploadCsv({
     required Uint8List fileBytes,
@@ -43,6 +51,12 @@ abstract class EvidenceRepository {
 
   /// Fetches the interleaved chronological evidence timeline.
   Future<List<EvidenceItemModel>> getEvidenceTimeline({
+    required String tenantId,
+    required String assetId,
+  });
+
+  /// Deletes all telemetry cycles for the specified tenant & asset from Supabase and memory.
+  Future<void> clearTelemetry({
     required String tenantId,
     required String assetId,
   });

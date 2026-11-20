@@ -224,17 +224,20 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                       children: [
                                         Icon(Icons.check_circle_outline_rounded, size: 16, color: isC1 ? AppColors.success : AppColors.slate600),
                                         const SizedBox(width: AppSpacing.xs),
-                                        Text(
-                                          'Cycle 1: Baseline',
-                                          style: AppTextStyles.headingSmall.copyWith(
-                                            fontSize: 13,
-                                            color: isC1 ? AppColors.success : AppColors.textPrimary,
+                                        Flexible(
+                                          child: Text(
+                                            'Cycle 1: Baseline',
+                                            style: AppTextStyles.headingSmall.copyWith(
+                                              fontSize: 12,
+                                              color: isC1 ? AppColors.success : AppColors.textPrimary,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                       ],
                                     ),
                                     const SizedBox(height: 2),
-                                    Text('Normal pressure (~156 bar), 0 leakage', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+                                    Text('Normal pressure (156 bar)', style: AppTextStyles.bodySmall.copyWith(fontSize: 10), overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
@@ -242,7 +245,7 @@ class TelemetrySimulatorCard extends StatelessWidget {
                           );
                         }),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
+                      const SizedBox(width: AppSpacing.xs),
                       Expanded(
                         child: Obx(() {
                           final isC211 = controller.selectedPreset.value == 'CYCLE_211';
@@ -270,17 +273,69 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                       children: [
                                         Icon(Icons.warning_amber_rounded, size: 16, color: isC211 ? AppColors.verdictAct : AppColors.slate600),
                                         const SizedBox(width: AppSpacing.xs),
-                                        Text(
-                                          'Cycle 211: Severe Leak',
-                                          style: AppTextStyles.headingSmall.copyWith(
-                                            fontSize: 13,
-                                            color: isC211 ? AppColors.verdictAct : AppColors.textPrimary,
+                                        Flexible(
+                                          child: Text(
+                                            'Cycle 211: Severe Leak',
+                                            style: AppTextStyles.headingSmall.copyWith(
+                                              fontSize: 12,
+                                              color: isC211 ? AppColors.verdictAct : AppColors.textPrimary,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                       ],
                                     ),
                                     const SizedBox(height: 2),
-                                    Text('Abrupt pressure drop to 110 bar', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
+                                    Text('Pressure drop to 110 bar', style: AppTextStyles.bodySmall.copyWith(fontSize: 10), overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Obx(() {
+                          final isC2205 = controller.selectedPreset.value == 'CYCLE_2205';
+                          return Tooltip(
+                            message: 'Cycle 2,205 (Full Rig Dataset Spectrum)\nSimulates and ingests the complete 2,205 cycles with live dynamic bar chart visualization.',
+                            waitDuration: const Duration(milliseconds: 200),
+                            child: InkWell(
+                              onTap: () => controller.setCyclePreset(2205),
+                              borderRadius: BorderRadius.circular(8),
+                              hoverColor: AppColors.primary.withValues(alpha: 0.08),
+                              child: Container(
+                                padding: const EdgeInsets.all(AppSpacing.sm),
+                                decoration: BoxDecoration(
+                                  color: isC2205 ? AppColors.primary.withValues(alpha: 0.12) : AppColors.bgLight,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isC2205 ? AppColors.primary : AppColors.borderLight,
+                                    width: isC2205 ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.auto_graph_rounded, size: 16, color: isC2205 ? AppColors.primary : AppColors.slate600),
+                                        const SizedBox(width: AppSpacing.xs),
+                                        Flexible(
+                                          child: Text(
+                                            'Cycle 2205: Full Rig',
+                                            style: AppTextStyles.headingSmall.copyWith(
+                                              fontSize: 12,
+                                              color: isC2205 ? AppColors.primaryDark : AppColors.textPrimary,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text('1 → 2,205 spectrum', style: AppTextStyles.bodySmall.copyWith(fontSize: 10), overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),
@@ -376,9 +431,13 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                 Text('PHYSICAL 60-SECOND STREAMING', style: AppTextStyles.labelCaps),
                               ],
                             ),
+                            // COMMENTED OUT AS REQUESTED: Containers of 1x Real, 6x Demo and 12x Ultra
+                            /*
                             // Speed Multiplier Selector
-                            Obx(() => Row(
-                                  mainAxisSize: MainAxisSize.min,
+                            Obx(() => Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Text('Speed: ', style: AppTextStyles.bodySmall.copyWith(fontSize: 11)),
                                     Tooltip(
@@ -391,7 +450,6 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                         visualDensity: VisualDensity.compact,
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
                                     Tooltip(
                                       message: '6x Fast Demo Speed: Replays the full 60-second cycle in 10 seconds for rapid testing.',
                                       waitDuration: const Duration(milliseconds: 200),
@@ -402,7 +460,6 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                         visualDensity: VisualDensity.compact,
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
                                     Tooltip(
                                       message: '12x Ultra Speed: Replays the 60-second cycle in 5 seconds (great for sequential 1 to N runs).',
                                       waitDuration: const Duration(milliseconds: 200),
@@ -415,6 +472,7 @@ class TelemetrySimulatorCard extends StatelessWidget {
                                     ),
                                   ],
                                 )),
+                            */
                           ],
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -422,12 +480,16 @@ class TelemetrySimulatorCard extends StatelessWidget {
                         // Active Stream Status & Progress Bar
                         Obx(() {
                           final isStreaming = controller.isStreamingLiveCycle.value;
+                          final isRangeStreaming = controller.isRangeStreaming.value;
                           final isUploading = controller.isUploading.value;
                           final isSequential = controller.isSequentialMode.value;
                           final seqCur = controller.sequentialCurrentCycle.value;
                           final seqTarget = controller.sequentialTargetCycle.value;
                           final elapsed = controller.streamElapsedSeconds.value;
-                          final progress = elapsed / 60.0;
+                          final rangeCur = controller.rangeStreamCurrent.value;
+                          final rangeEnd = controller.rangeStreamEnd.value;
+                          final throughput = controller.streamingThroughput.value;
+                          final progress = isRangeStreaming ? controller.streamProgress.value : (elapsed / 60.0);
                           final phase = controller.currentLivePhase.value;
 
                           return Column(
@@ -436,35 +498,44 @@ class TelemetrySimulatorCard extends StatelessWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Flexible(
+                                  Expanded(
                                     child: Text(
-                                      isUploading
-                                          ? (isSequential ? 'SEALING CYCLE #$seqCur OF $seqTarget...' : 'SEALING PARQUET & COMMITTING TO SUPABASE...')
-                                          : (isStreaming
-                                              ? (isSequential ? 'RUNNING CYCLE #$seqCur OF $seqTarget: $phase' : 'STREAMING: $phase')
-                                              : (elapsed == 60 ? 'CYCLE SEALED & COMMITTED' : 'READY TO STREAM 60s CYCLE')),
+                                      isRangeStreaming
+                                          ? 'STREAMING SPECTRUM (1 → $rangeEnd): Cycle #$rangeCur • $throughput cyc/s'
+                                          : (isUploading
+                                              ? (isSequential ? 'SEALING CYCLE #$seqCur OF $seqTarget...' : 'SEALING PARQUET & COMMITTING TO SUPABASE...')
+                                              : (isStreaming
+                                                  ? (isSequential ? 'RUNNING CYCLE #$seqCur OF $seqTarget: $phase' : 'STREAMING: $phase')
+                                                  : (elapsed == 60 ? 'CYCLE SEALED & COMMITTED' : 'READY TO STREAM 60s CYCLE'))),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
-                                        color: isUploading
-                                            ? AppColors.sensorTemp
-                                            : (isStreaming ? AppColors.primaryDark : AppColors.slate700),
+                                        color: isRangeStreaming
+                                            ? AppColors.primaryDark
+                                            : (isUploading
+                                                ? AppColors.sensorTemp
+                                                : (isStreaming ? AppColors.primaryDark : AppColors.slate700)),
                                       ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  const SizedBox(width: AppSpacing.xs),
                                   Text(
-                                    isUploading ? 'SEALING...' : (isSequential ? '${elapsed}s/60s (Cycle $seqCur/$seqTarget)' : '${elapsed}s / 60s'),
+                                    isRangeStreaming
+                                        ? '${(progress * 100).toInt()}% ($rangeCur/$rangeEnd)'
+                                        : (isUploading ? 'SEALING...' : (isSequential ? '${elapsed}s/60s (Cycle $seqCur/$seqTarget)' : '${elapsed}s / 60s')),
                                     style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: AppSpacing.xs),
                               LinearProgressIndicator(
-                                value: isStreaming || elapsed > 0 ? progress : 0.0,
+                                value: isRangeStreaming ? progress : (isStreaming || elapsed > 0 ? progress : 0.0),
                                 backgroundColor: AppColors.borderLight,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  elapsed == 60 ? AppColors.success : AppColors.primary,
+                                  isRangeStreaming
+                                      ? AppColors.primary
+                                      : (elapsed == 60 ? AppColors.success : AppColors.primary),
                                 ),
                                 minHeight: 6,
                                 borderRadius: BorderRadius.circular(3),
@@ -542,7 +613,7 @@ class TelemetrySimulatorCard extends StatelessWidget {
 
                   // Ingest Action Buttons (Real-time Stream vs Instant Batch)
                   Obx(() {
-                    final isStreaming = controller.isStreamingLiveCycle.value;
+                    final isStreaming = controller.isStreamingLiveCycle.value || controller.isRangeStreaming.value;
                     final isUploading = controller.isUploading.value;
                     final cycleNum = controller.cycleId.value;
 

@@ -158,8 +158,21 @@ class EvidenceService:
 
         # Determine quality / health condition flag
         # (Cycle 211 in the dataset is severe pump leakage)
+        # Previous hardcoded check:
+        # quality_flag = "NOMINAL"
+        # if cycle_id == 211 or (cycle_id >= 211 and cycle_id <= 220):
+        #     quality_flag = "DEGRADED_LEAK"
+
         quality_flag = "NOMINAL"
-        if cycle_id == 211 or (cycle_id >= 211 and cycle_id <= 220):
+        profile_path = self.hydraulic_adapter.data_dir / "profile.txt"
+        if profile_path.exists():
+            import linecache
+            line = linecache.getline(str(profile_path), cycle_id).strip()
+            if line:
+                cols = line.split()
+                if len(cols) >= 3 and int(cols[2]) > 0:
+                    quality_flag = "DEGRADED_LEAK"
+        elif cycle_id == 211 or (211 <= cycle_id <= 220):
             quality_flag = "DEGRADED_LEAK"
 
         evidence_item = EvidenceItem(
@@ -177,14 +190,122 @@ class EvidenceService:
             ingestion_latency_ms=canonical.timestamps.ingestion_latency_ms,
             processing_latency_ms=canonical.timestamps.processing_latency_ms,
             quality_flag=quality_flag,
-            canonical_data=canonical.model_dump(by_alias=True),
+            canonical_data=canonical.model_dump(by_alias=True, mode="json"),
         )
 
         return self.database.save_evidence(evidence_item)
 
+    def ingest_telemetry_range(
+        self,
+        start_cycle: int = 1,
+        end_cycle: int = 2205,
+        tenant_id: str = "hydraulic_lab",
+        asset_id: str = "hydraulic_rig_01",
+    ) -> List[EvidenceItem]:
+        """
+        High-throughput range ingestion for cycles start_cycle to end_cycle.
+        Uses bulk idempotency checking, concurrent storage uploads, and batch persistence.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+        import linecache
+
+        profile_path = self.hydraulic_adapter.data_dir / "profile.txt"
+        has_profile = profile_path.exists()
+
+        # 1. Bulk Idempotency check: 1 single network query instead of N individual queries
+        existing_map = self.database.find_cycles_in_range(tenant_id, asset_id, start_cycle, end_cycle)
+
+        cycles_to_process = [c for c in range(start_cycle, end_cycle + 1) if c not in existing_map]
+        newly_created_items: List[EvidenceItem] = []
+        uploads_to_execute = []
+
+        # 2. Extract and prepare new cycles
+        for cycle_id in cycles_to_process:
+            canonical, parquet_bytes, raw_sha256, extra_meta = self.hydraulic_adapter.extract_canonical(
+                cycle_id=cycle_id,
+                tenant_id=tenant_id,
+                asset_id=asset_id,
+            )
+
+            raw_file_name = f"cycle_{cycle_id:04d}.parquet"
+            storage_path = f"telemetry/{tenant_id}/{asset_id}/{raw_file_name}"
+            uploads_to_execute.append((storage_path, parquet_bytes))
+
+            quality_flag = "NOMINAL"
+            if has_profile:
+                line = linecache.getline(str(profile_path), cycle_id).strip()
+                if line:
+                    cols = line.split()
+                    if len(cols) >= 3 and int(cols[2]) > 0:
+                        quality_flag = "DEGRADED_LEAK"
+            elif cycle_id == 211 or (211 <= cycle_id <= 220):
+                quality_flag = "DEGRADED_LEAK"
+
+            evidence_item = EvidenceItem(
+                tenant_id=tenant_id,
+                asset_id=asset_id,
+                component_id="system",
+                evidence_type="TELEMETRY_CYCLE",
+                cycle_id=cycle_id,
+                raw_file_name=raw_file_name,
+                raw_storage_path=storage_path,
+                raw_file_sha256=raw_sha256,
+                event_time=canonical.timestamps.event_time,
+                ingestion_time=canonical.timestamps.ingestion_time,
+                available_time=canonical.timestamps.available_time,
+                ingestion_latency_ms=canonical.timestamps.ingestion_latency_ms,
+                processing_latency_ms=canonical.timestamps.processing_latency_ms,
+                quality_flag=quality_flag,
+                canonical_data=canonical.model_dump(by_alias=True, mode="json"),
+            )
+            newly_created_items.append(evidence_item)
+
+        # 3. Concurrent Storage Uploads (8 threads)
+        if uploads_to_execute:
+            def _upload_task(task):
+                path, data = task
+                self.storage.upload(path, data, mime_type="application/x-parquet")
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                list(executor.map(_upload_task, uploads_to_execute))
+
+        # 4. Batch Database Persistence (single chunked write)
+        if newly_created_items:
+            self.database.save_evidence_batch(newly_created_items)
+
+        # 5. Assemble and return full requested range in order
+        all_results: List[EvidenceItem] = []
+        new_map = {item.cycle_id: item for item in newly_created_items if item.cycle_id is not None}
+        for c in range(start_cycle, end_cycle + 1):
+            if c in existing_map:
+                all_results.append(existing_map[c])
+            elif c in new_map:
+                all_results.append(new_map[c])
+
+        return all_results
+
+        # PREVIOUS SEQUENTIAL IMPLEMENTATION PRESERVED:
+        # items_to_persist: List[EvidenceItem] = []
+        # for cycle_id in range(start_cycle, end_cycle + 1):
+        #     existing = self.database.find_cycle(tenant_id, asset_id, cycle_id)
+        #     if existing:
+        #         items_to_persist.append(existing)
+        #         continue
+
     def get_timeline(self, tenant_id: str, asset_id: str) -> List[EvidenceItem]:
         """Retrieves chronological interleaved evidence stream."""
         return self.database.get_timeline(tenant_id, asset_id)
+
+    def clear_telemetry(self, tenant_id: str = "hydraulic_lab", asset_id: str = "hydraulic_rig_01") -> dict:
+        """Purges all telemetry cycles from both Supabase database and memory cache."""
+        count = self.database.delete_telemetry_records(tenant_id, asset_id)
+        return {
+            "status": "SUCCESS",
+            "message": f"Successfully deleted {count} telemetry cycles from Supabase and memory.",
+            "deleted_count": count,
+            "tenant_id": tenant_id,
+            "asset_id": asset_id,
+        }
 
     def get_evidence_by_id(self, evidence_id: str) -> Optional[EvidenceItem]:
         """Fetch single item."""

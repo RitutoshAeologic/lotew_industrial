@@ -90,6 +90,13 @@ class IngestCycleRequest(BaseModel):
     asset_id: str = Field(default="hydraulic_rig_01", description="Monitored industrial rig ID")
 
 
+class IngestRangeRequest(BaseModel):
+    start_cycle: int = Field(default=1, ge=1, le=2205, description="Starting cycle number (1 to 2205)")
+    end_cycle: int = Field(default=2205, ge=1, le=2205, description="Ending cycle number (1 to 2205)")
+    tenant_id: str = Field(default="hydraulic_lab", description="Logical multi-tenant identifier")
+    asset_id: str = Field(default="hydraulic_rig_01", description="Monitored industrial rig ID")
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str

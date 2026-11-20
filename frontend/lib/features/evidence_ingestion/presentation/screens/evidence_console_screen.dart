@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_spacing.dart';
@@ -9,9 +10,11 @@ import '../../../../shared/widgets/app_scaffold.dart';
 import '../../domain/models/evidence_item_model.dart';
 import '../controllers/evidence_controller.dart';
 import '../widgets/canonical_json_viewer.dart';
+import '../widgets/forensic_detail_dialog.dart';
 // import '../widgets/csv_upload_card.dart';
 import '../widgets/live_forensic_card.dart';
 // import '../widgets/pdf_upload_card.dart';
+import '../widgets/telemetry_live_bar_chart.dart';
 import '../widgets/telemetry_simulator_card.dart';
 import '../widgets/telemetry_waveform_chart.dart';
 
@@ -41,10 +44,12 @@ class EvidenceConsoleScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: AppSpacing.sm,
+                        runSpacing: 4,
                         children: [
                           Text('Industrial Evidence Ingestion Console', style: AppTextStyles.headingLarge),
-                          const SizedBox(width: AppSpacing.sm),
                           Tooltip(
                             message: 'Active Physical Asset: Hydraulic Test Bench (hydraulic_rig_01)\nTenant: hydraulic_lab • Discrete 60s Cycles @ 100 Hz',
                             waitDuration: const Duration(milliseconds: 200),
@@ -110,8 +115,10 @@ class EvidenceConsoleScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
+                    // const SizedBox(width: AppSpacing.md),
 
+                    // COMMENTED OUT AS REQUESTED: Live API container at the top
+                    /*
                     // Live API vs Mock Mode Switch
                     Obx(() => Tooltip(
                           message: controller.isMockMode.value
@@ -155,6 +162,7 @@ class EvidenceConsoleScreen extends StatelessWidget {
                             ),
                           ),
                         )),
+                    */
                   ],
                 ),
               ],
@@ -230,13 +238,16 @@ class EvidenceConsoleScreen extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.lg),
 
-            // Responsive Layout: Ingestion Card on Left, Live Inspector on Right
+            // ── 17-Sensor Telemetry Simulator (Full-Width Console Mode) ────────────────
+            const TelemetrySimulatorCard(),
+
+            /* PREVIOUS SPLIT LAYOUT (SIMULATOR ON LEFT + INSPECTOR ON RIGHT) PRESERVED:
             Obx(() {
               final latestTelemetry = controller.latestTelemetryEvidence.value;
               final isStreaming = controller.isStreamingLiveCycle.value;
+              final isRangeStreaming = controller.isRangeStreaming.value;
               final isUploading = controller.isUploading.value;
 
-              // Only 17-Sensor Hydraulic Rig Telemetry is active
               Widget rightColumn;
               if (isUploading) {
                 rightColumn = _SealingUploadCard(
@@ -245,16 +256,16 @@ class EvidenceConsoleScreen extends StatelessWidget {
                   currentStep: controller.sequentialCurrentCycle.value,
                   totalSteps: controller.sequentialTargetCycle.value,
                 );
-              } else if (isStreaming) {
+              } else if (isStreaming || isRangeStreaming) {
                 rightColumn = _StreamingLiveMonitorCard(
                   cycleId: controller.cycleId.value,
                   phase: controller.currentLivePhase.value,
                   elapsed: controller.streamElapsedSeconds.value,
                   pressure: controller.currentLivePressure.value,
                   flow: controller.currentLiveFlow.value,
-                  isSequential: controller.isSequentialMode.value,
-                  currentStep: controller.sequentialCurrentCycle.value,
-                  totalSteps: controller.sequentialTargetCycle.value,
+                  isSequential: controller.isSequentialMode.value || isRangeStreaming,
+                  currentStep: isRangeStreaming ? controller.rangeStreamCurrent.value : controller.sequentialCurrentCycle.value,
+                  totalSteps: isRangeStreaming ? controller.rangeStreamEnd.value : controller.sequentialTargetCycle.value,
                 );
               } else if (latestTelemetry != null) {
                 final selectedTab = controller.inspectionTab.value;
@@ -263,72 +274,17 @@ class EvidenceConsoleScreen extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.borderLight),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Encapsulated Header Bar: Verdict + Key Metrics + Retest
                       _InspectionHeader(
                         evidence: latestTelemetry,
                         cycleId: controller.cycleId.value,
                         onRetest: controller.resetRetestSession,
                       ),
                       const Divider(height: 1),
-
-                      // Segmented Inspection Tabs
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-                        color: AppColors.bgLight,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _InspectionSegmentButton(
-                                label: 'Waveforms & Dynamics',
-                                icon: Icons.show_chart_rounded,
-                                isSelected: selectedTab == 0,
-                                onTap: () => controller.setInspectionTab(0),
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              _InspectionSegmentButton(
-                                label: 'Cryptographic Ledger & Audit',
-                                icon: Icons.verified_user_rounded,
-                                isSelected: selectedTab == 1,
-                                onTap: () => controller.setInspectionTab(1),
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              _InspectionSegmentButton(
-                                label: 'Canonical Observation JSON',
-                                icon: Icons.code_rounded,
-                                isSelected: selectedTab == 2,
-                                onTap: () => controller.setInspectionTab(2),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Divider(height: 1),
-
-                      // Encapsulated Content Body
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: selectedTab == 0
-                            ? TelemetryWaveformChart(
-                                cycleId: controller.cycleId.value,
-                                isSevereLeak: controller.cycleId.value >= 211,
-                                evidence: latestTelemetry,
-                              )
-                            : (selectedTab == 1
-                                ? LiveForensicCard(evidence: latestTelemetry)
-                                : CanonicalJsonViewer(data: latestTelemetry.canonicalData)),
-                      ),
+                      // Segmented inspection tabs...
                     ],
                   ),
                 );
@@ -344,17 +300,6 @@ class EvidenceConsoleScreen extends StatelessWidget {
                   },
                 );
               }
-
-              /*
-              // CSV and PDF inspection cards temporarily commented out
-              if (activeTab == 1) {
-                // CSV Inspection
-                if (latestCsv != null) { ... }
-              } else if (activeTab == 2) {
-                // PDF Inspection
-                if (latestPdf != null) { ... }
-              }
-              */
 
               if (rc.isDesktop) {
                 return Row(
@@ -374,6 +319,22 @@ class EvidenceConsoleScreen extends StatelessWidget {
                   ],
                 );
               }
+            }),
+            */
+
+            // ── Live Ingestion Spectrum Bar Chart Card (Conditional: Shown ONLY when Full Rig is streaming) ──
+            Obx(() {
+              final isFullRigActive = controller.isRangeStreaming.value;
+              if (!isFullRigActive) {
+                return const SizedBox.shrink();
+              }
+              return const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: AppSpacing.xl),
+                  _TelemetrySpectrumOverviewCard(),
+                ],
+              );
             }),
 
             const SizedBox(height: AppSpacing.xl),
@@ -793,121 +754,143 @@ class _StreamingLiveMonitorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (elapsed / 60.0).clamp(0.0, 1.0);
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.primaryDark, width: 1.5),
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        color: AppColors.success,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      isSequential
-                          ? 'CONTINUOUS RUN • CYCLE #$cycleId OF #$totalSteps'
-                          : 'PHYSICAL TEST RIG EXECUTION • CYCLE #$cycleId',
-                      style: AppTextStyles.labelCaps.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                Text(
-                  isSequential
-                      ? '${elapsed}s/60s (Batch $currentStep/$totalSteps)'
-                      : '${elapsed}s / 60s (${(progress * 100).toInt()}%)',
-                  style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(4),
-              backgroundColor: AppColors.borderLight,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryDark),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.slate900,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final controller = EvidenceController.to;
+    return Obx(() {
+      final isRange = controller.isRangeStreaming.value;
+      final rangeCur = controller.rangeStreamCurrent.value;
+      final rangeEnd = controller.rangeStreamEnd.value;
+      final throughput = controller.streamingThroughput.value;
+      final progress = isRange ? controller.streamProgress.value : (elapsed / 60.0).clamp(0.0, 1.0);
+
+      return Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.primaryDark, width: 1.5),
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('ACTIVE STROKE PHASE:', style: AppTextStyles.labelCaps.copyWith(color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  Text(phase, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                  const Divider(color: Colors.white24, height: 16),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Column(
-                        children: [
-                          const Text('PS1 Pressure', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${pressure.toStringAsFixed(1)} bar',
-                            style: const TextStyle(color: AppColors.sensorPressure, fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                      Container(width: 1, height: 30, color: Colors.white24),
-                      Column(
-                        children: [
-                          const Text('FS1 Flow Rate', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${flow.toStringAsFixed(1)} L/min',
-                            style: const TextStyle(color: AppColors.sensorFlow, fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        isRange
+                            ? 'CONTINUOUS INDUSTRIAL RUN • CYCLE #$rangeCur OF #$rangeEnd'
+                            : (isSequential
+                                ? 'CONTINUOUS RUN • CYCLE #$cycleId OF #$totalSteps'
+                                : 'PHYSICAL TEST RIG EXECUTION • CYCLE #$cycleId'),
+                        style: AppTextStyles.labelCaps.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
+                  Text(
+                    isRange
+                        ? '${(progress * 100).toInt()}% ($rangeCur / $rangeEnd) • $throughput cyc/s'
+                        : (isSequential
+                            ? '${elapsed}s/60s (Batch $currentStep/$totalSteps)'
+                            : '${elapsed}s / 60s (${(progress * 100).toInt()}%)'),
+                    style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+              const SizedBox(height: AppSpacing.sm),
+              LinearProgressIndicator(
+                value: progress,
+                minHeight: 8,
+                borderRadius: BorderRadius.circular(4),
+                backgroundColor: AppColors.borderLight,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryDark),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.slate900,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: Text(
-                    'Streaming 43,680 data points across 17 synchronized channels. Automatic Parquet sealing will trigger at 60s.',
-                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary, fontSize: 11),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isRange ? 'LIVE INDUSTRIAL RANGE EXECUTION:' : 'ACTIVE STROKE PHASE:',
+                      style: AppTextStyles.labelCaps.copyWith(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isRange
+                          ? 'Streaming Cycles ${(rangeCur - 50 + 1).clamp(1, rangeEnd)} → $rangeCur • Multi-Rate 17-Sensor Synchronization'
+                          : phase,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const Divider(color: Colors.white24, height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            Text(isRange ? 'Throughput' : 'PS1 Pressure', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                            const SizedBox(height: 2),
+                            Text(
+                              isRange ? '$throughput cyc/s' : '${pressure.toStringAsFixed(1)} bar',
+                              style: const TextStyle(color: AppColors.sensorPressure, fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        Container(width: 1, height: 30, color: Colors.white24),
+                        Column(
+                          children: [
+                            Text(isRange ? 'Rig Pressure' : 'FS1 Flow Rate', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                            const SizedBox(height: 2),
+                            Text(
+                              isRange ? '${controller.currentLivePressure.value.toStringAsFixed(1)} bar' : '${flow.toStringAsFixed(1)} L/min',
+                              style: const TextStyle(color: AppColors.sensorFlow, fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      isRange
+                          ? 'Continuous multi-cycle ingestion active. Live progress and condition flags are updating dynamically on the 2,205-Cycle Spectrum below.'
+                          : 'Streaming 43,680 data points across 17 synchronized channels. Automatic Parquet sealing will trigger at 60s.',
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
@@ -960,8 +943,94 @@ class _ExtractedTextCard extends StatelessWidget {
 }
 */
 
-class _EvidenceHistoryTable extends StatelessWidget {
-  const _EvidenceHistoryTable();
+/// Real-time Ingestion Spectrum Overview Card displaying 45 dense bins across 2,205 cycles
+class _TelemetrySpectrumOverviewCard extends StatelessWidget {
+  const _TelemetrySpectrumOverviewCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = EvidenceController.to;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.borderLight),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.bar_chart_rounded, size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('Live Ingestion Spectrum (Cycles 1 – 2,205)', style: AppTextStyles.headingSmall),
+                  ],
+                ),
+                Obx(() {
+                  final count = controller.cycleQualityMap.length;
+                  final isStreaming = controller.isRangeStreaming.value;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isStreaming) ...[
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'LIVE STREAM: ${controller.streamingThroughput.value} cyc/s',
+                          style: AppTextStyles.monoSmall.copyWith(color: AppColors.primaryDark, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Text(
+                        '$count / 2,205 Cycles Ingested',
+                        style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Continuous multi-sensor hydraulic test rig cycle distribution across 45 bins (50 cycles/bin). Green: Nominal Baseline • Amber: Degraded Leak • Cyan: Actively Streaming Batch.',
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(),
+            const SizedBox(height: AppSpacing.md),
+            Obx(() {
+              final map = Map<int, String>.from(controller.cycleQualityMap);
+              return TelemetryLiveBarChart(
+                cycleQualityMap: map,
+                currentCycle: controller.rangeStreamCurrent.value,
+                totalCycles: 2205,
+                isStreaming: controller.isRangeStreaming.value,
+                throughput: controller.streamingThroughput.value,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* PREVIOUS UNPAGINATED TABLE IMPLEMENTATION PRESERVED:
+class _EvidenceHistoryTableLegacy extends StatelessWidget {
+  const _EvidenceHistoryTableLegacy();
 
   @override
   Widget build(BuildContext context) {
@@ -1081,6 +1150,560 @@ class _EvidenceHistoryTable extends StatelessWidget {
               );
             }),
           ],
+        ),
+      ),
+    );
+  }
+}
+*/
+
+/// Upgraded High-Capacity Paginated Forensic Evidence Ledger (Audit Trail)
+/// Smoothly renders all 2,205 cycles with search, filters, pagination, and "View JSON" modal dossiers.
+class _EvidenceHistoryTable extends StatefulWidget {
+  const _EvidenceHistoryTable();
+
+  @override
+  State<_EvidenceHistoryTable> createState() => _EvidenceHistoryTableState();
+}
+
+class _EvidenceHistoryTableState extends State<_EvidenceHistoryTable> {
+  final TextEditingController _searchController = TextEditingController();
+  int _currentPage = 0;
+  int _rowsPerPage = 50;
+  String _selectedCondition = 'ALL'; // 'ALL', 'NOMINAL', 'DEGRADED_LEAK'
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = EvidenceController.to;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.borderLight),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Ledger Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text('Forensic Evidence Ledger (Audit Trail)', style: AppTextStyles.headingSmall),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Obx(() {
+                      final totalCycles = controller.evidenceHistory.where((e) => e.isTelemetry).length;
+                      return Text(
+                        '$totalCycles Telemetry Cycles Registered',
+                        style: AppTextStyles.monoSmall.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+                      );
+                    }),
+                    const SizedBox(width: AppSpacing.xs),
+                    IconButton(
+                      icon: const Icon(Icons.sync_rounded, size: 16, color: AppColors.slate600),
+                      tooltip: 'Refresh Ledger from Supabase',
+                      onPressed: controller.refreshLedger,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    // Clear / Delete Ingested Data Button
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Get.dialog(
+                          AlertDialog(
+                            title: const Row(
+                              children: [
+                                Icon(Icons.delete_outline_rounded, color: AppColors.verdictAct, size: 22),
+                                SizedBox(width: 8),
+                                Text('Delete All Telemetry Data?'),
+                              ],
+                            ),
+                            content: const Text(
+                              'This will permanently delete all ingested telemetry cycles from the Supabase database and purge local memory. This action cannot be undone.',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Get.back(),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  Get.back();
+                                  controller.clearAllTelemetry();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.verdictAct,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Delete Data'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.delete_sweep_rounded, size: 15, color: AppColors.verdictAct),
+                      label: const Text(
+                        'Clear Data',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.verdictAct),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        side: BorderSide(color: AppColors.verdictAct.withValues(alpha: 0.5)),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(),
+            const SizedBox(height: AppSpacing.md),
+
+            // Controls Bar: Search + Filter Chips + Rows Per Page
+            Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // Quick Cycle Search
+                SizedBox(
+                  width: 240,
+                  height: 38,
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() => _currentPage = 0),
+                    decoration: InputDecoration(
+                      hintText: 'Search Cycle # or SHA...',
+                      hintStyle: const TextStyle(fontSize: 12, color: AppColors.slate500),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 16, color: AppColors.slate500),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 14),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _currentPage = 0);
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                      filled: true,
+                      fillColor: AppColors.bgLight,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.borderLight)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.borderLight)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary)),
+                    ),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+
+                // Condition Filter Chips
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _FilterChipButton(
+                      label: 'All Cycles',
+                      isSelected: _selectedCondition == 'ALL',
+                      onTap: () => setState(() {
+                        _selectedCondition = 'ALL';
+                        _currentPage = 0;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterChipButton(
+                      label: 'Nominal',
+                      color: AppColors.success,
+                      isSelected: _selectedCondition == 'NOMINAL',
+                      onTap: () => setState(() {
+                        _selectedCondition = 'NOMINAL';
+                        _currentPage = 0;
+                      }),
+                    ),
+                    const SizedBox(width: 6),
+                    _FilterChipButton(
+                      label: 'Degraded Leaks',
+                      color: AppColors.warning,
+                      isSelected: _selectedCondition == 'DEGRADED_LEAK',
+                      onTap: () => setState(() {
+                        _selectedCondition = 'DEGRADED_LEAK';
+                        _currentPage = 0;
+                      }),
+                    ),
+                  ],
+                ),
+
+                // Rows Per Page Selector
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Rows per page:', style: TextStyle(fontSize: 12, color: AppColors.slate600)),
+                    const SizedBox(width: 6),
+                    DropdownButton<int>(
+                      value: _rowsPerPage,
+                      isDense: true,
+                      underline: const SizedBox(),
+                      style: const TextStyle(fontSize: 12, color: AppColors.slate900, fontWeight: FontWeight.bold),
+                      items: const [
+                        DropdownMenuItem(value: 25, child: Text('25')),
+                        DropdownMenuItem(value: 50, child: Text('50')),
+                        DropdownMenuItem(value: 100, child: Text('100')),
+                        DropdownMenuItem(value: 250, child: Text('250')),
+                        DropdownMenuItem(value: 2205, child: Text('All (2,205)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _rowsPerPage = val;
+                            _currentPage = 0;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // Paginated Table Body
+            Obx(() {
+              final allTelemetry = controller.evidenceHistory.where((e) => e.isTelemetry).toList();
+
+              if (allTelemetry.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        const Icon(Icons.inbox_rounded, size: 40, color: AppColors.slate500),
+                        const SizedBox(height: 8),
+                        Text('No evidence ingested yet.', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.slate600)),
+                        const SizedBox(height: 4),
+                        const Text('Click "Live Stream (1 → 2205)" to ingest cycles 1 to 2,205.', style: TextStyle(fontSize: 12, color: AppColors.slate500)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Apply filtering
+              final query = _searchController.text.trim().toLowerCase();
+              final filtered = allTelemetry.where((item) {
+                if (_selectedCondition != 'ALL' && item.qualityFlag != _selectedCondition) {
+                  return false;
+                }
+                if (query.isNotEmpty) {
+                  final matchCycle = item.cycleId?.toString().contains(query) ?? false;
+                  final matchSha = item.rawFileSha256.toLowerCase().contains(query);
+                  final matchFlag = item.qualityFlag.toLowerCase().contains(query);
+                  return matchCycle || matchSha || matchFlag;
+                }
+                return true;
+              }).toList();
+
+              if (filtered.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                  child: Center(
+                    child: Text('No telemetry records match "$query".', style: AppTextStyles.bodySmall),
+                  ),
+                );
+              }
+
+              final totalItems = filtered.length;
+              final maxPage = ((totalItems - 1) / _rowsPerPage).floor();
+              final safePage = _currentPage.clamp(0, maxPage);
+              final startIndex = safePage * _rowsPerPage;
+              final endIndex = (startIndex + _rowsPerPage > totalItems) ? totalItems : (startIndex + _rowsPerPage);
+              final pageItems = filtered.sublist(startIndex, endIndex);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final availableWidth = constraints.maxWidth;
+                      // Dynamic column spacing to guarantee table spans 100% width across cards
+                      final dynamicSpacing = ((availableWidth - 950) / 8).clamp(10.0, 36.0);
+
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: availableWidth),
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(AppColors.bgLight),
+                            horizontalMargin: 16,
+                            columnSpacing: dynamicSpacing,
+                            columns: const [
+                              DataColumn(label: Text('TYPE')),
+                              DataColumn(label: Text('TARGET')),
+                              DataColumn(label: Text('SHA-256 FILE HASH')),
+                              DataColumn(label: Text('CANONICAL PARQUET')),
+                              DataColumn(label: Text('EVENT TIME')),
+                              DataColumn(label: Text('INGESTION TIME')),
+                              DataColumn(label: Text('LATENCY')),
+                              DataColumn(label: Text('STATUS')),
+                              DataColumn(label: Text('ACTIONS (POP-UP / VIEW)')),
+                            ],
+                            rows: pageItems.map((item) {
+                              final isNominal = item.qualityFlag == 'NOMINAL';
+                              return DataRow(
+                                cells: [
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.speed_rounded, size: 16, color: AppColors.primary),
+                                      const SizedBox(width: AppSpacing.xs),
+                                      Text('TELEMETRY', style: AppTextStyles.monoSmall.copyWith(fontWeight: FontWeight.bold)),
+                                    ],
+                                  )),
+                                  DataCell(Text('Cycle #${item.cycleId}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text('${item.rawFileSha256.substring(0, 16)}...', style: AppTextStyles.monoSmall),
+                                      const SizedBox(width: 4),
+                                      InkWell(
+                                        onTap: () {
+                                          Clipboard.setData(ClipboardData(text: item.rawFileSha256));
+                                          Get.snackbar('Hash Copied', 'Copied full SHA-256 to clipboard', snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 2));
+                                        },
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: const Padding(
+                                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                          child: Icon(Icons.copy_rounded, size: 13, color: AppColors.slate500),
+                                        ),
+                                      ),
+                                    ],
+                                  )),
+                                  DataCell(Text(
+                                    item.rawStoragePath.split('/').last,
+                                    style: AppTextStyles.monoSmall.copyWith(fontSize: 11, color: AppColors.slate600),
+                                  )),
+                                  DataCell(Text(
+                                    item.eventTime != null ? item.eventTime!.toIso8601String().replaceAll('T', ' ').substring(0, 19) : '-',
+                                    style: AppTextStyles.monoSmall.copyWith(fontSize: 11, color: AppColors.slate700),
+                                  )),
+                                  DataCell(Text(
+                                    item.ingestionTime.toIso8601String().replaceAll('T', ' ').substring(0, 19),
+                                    style: AppTextStyles.monoSmall.copyWith(fontSize: 11, color: AppColors.slate700),
+                                  )),
+                                  DataCell(Tooltip(
+                                    message: AppFormatters.formatTooltipDuration(item.processingLatencyMs),
+                                    child: Text(AppFormatters.formatDurationMs(item.processingLatencyMs), style: AppTextStyles.monoSmall),
+                                  )),
+                                  DataCell(Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isNominal ? AppColors.success.withValues(alpha: 0.15) : AppColors.warning.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: isNominal ? AppColors.success : AppColors.warning, width: 0.8),
+                                    ),
+                                    child: Text(
+                                      item.qualityFlag,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: isNominal ? AppColors.success : AppColors.warning,
+                                      ),
+                                    ),
+                                  )),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Lightweight View JSON PopUp Action Button
+                                      _TableActionButton(
+                                        label: 'View JSON',
+                                        icon: Icons.code_rounded,
+                                        isPrimary: true,
+                                        onTap: () => showDialog(
+                                          context: context,
+                                          barrierDismissible: true,
+                                          builder: (_) => ForensicDetailDialog(item: item),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Lightweight Inspect Dossier Action Button
+                                      _TableActionButton(
+                                        label: 'Inspect',
+                                        isPrimary: false,
+                                        onTap: () => showDialog(
+                                          context: context,
+                                          barrierDismissible: true,
+                                          builder: (_) => ForensicDetailDialog(item: item),
+                                        ),
+                                      ),
+                                    ],
+                                  )),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: AppSpacing.md),
+                  const Divider(),
+                  const SizedBox(height: AppSpacing.sm),
+
+                  // Pagination Footer Navigation
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Showing ${startIndex + 1} – $endIndex of $totalItems cycles',
+                        style: const TextStyle(fontSize: 12, color: AppColors.slate600),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.first_page_rounded, size: 18),
+                            tooltip: 'First Page',
+                            onPressed: safePage > 0 ? () => setState(() => _currentPage = 0) : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left_rounded, size: 18),
+                            tooltip: 'Previous Page',
+                            onPressed: safePage > 0 ? () => setState(() => _currentPage = safePage - 1) : null,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              'Page ${safePage + 1} of ${maxPage + 1}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right_rounded, size: 18),
+                            tooltip: 'Next Page',
+                            onPressed: safePage < maxPage ? () => setState(() => _currentPage = safePage + 1) : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.last_page_rounded, size: 18),
+                            tooltip: 'Last Page',
+                            onPressed: safePage < maxPage ? () => setState(() => _currentPage = maxPage) : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TableActionButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  const _TableActionButton({
+    required this.label,
+    this.icon,
+    required this.onTap,
+    this.isPrimary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isPrimary ? AppColors.slate900 : Colors.white,
+      borderRadius: BorderRadius.circular(5),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(5),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(5),
+            border: isPrimary ? null : Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 12, color: isPrimary ? Colors.white : AppColors.slate700),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isPrimary ? Colors.white : AppColors.primaryDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChipButton extends StatelessWidget {
+  final String label;
+  final Color? color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FilterChipButton({
+    required this.label,
+    this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveColor = color ?? AppColors.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? effectiveColor.withValues(alpha: 0.15) : AppColors.bgLight,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? effectiveColor : AppColors.borderLight,
+            width: isSelected ? 1.2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? effectiveColor : AppColors.slate700,
+          ),
         ),
       ),
     );

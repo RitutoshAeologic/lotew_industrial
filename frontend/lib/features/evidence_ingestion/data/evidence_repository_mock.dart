@@ -284,6 +284,21 @@ class EvidenceRepositoryMock implements EvidenceRepository {
   }
 
   @override
+  Future<List<EvidenceItemModel>> ingestTelemetryRange({
+    required int startCycle,
+    required int endCycle,
+    required String tenantId,
+    required String assetId,
+  }) async {
+    final List<EvidenceItemModel> results = [];
+    for (int c = startCycle; c <= endCycle; c++) {
+      final item = await ingestTelemetryCycle(cycleId: c, tenantId: tenantId, assetId: assetId);
+      results.add(item);
+    }
+    return results;
+  }
+
+  @override
   Future<EvidenceItemModel> uploadCsv({
     required Uint8List fileBytes,
     required String fileName,
@@ -450,5 +465,13 @@ class EvidenceRepositoryMock implements EvidenceRepository {
     // 150ms delay matching test expectation
     await Future.delayed(const Duration(milliseconds: 150));
     return List<EvidenceItemModel>.from(_memoryStore);
+  }
+
+  @override
+  Future<void> clearTelemetry({
+    required String tenantId,
+    required String assetId,
+  }) async {
+    _memoryStore.removeWhere((item) => item.isTelemetry && item.tenantId == tenantId && item.assetId == assetId);
   }
 }

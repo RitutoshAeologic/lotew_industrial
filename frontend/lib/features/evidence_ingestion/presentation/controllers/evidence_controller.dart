@@ -56,6 +56,16 @@ class EvidenceController extends GetxController {
   final sequentialCurrentCycle = 1.obs;
   final sequentialTargetCycle = 1.obs;
 
+  // ── High-Throughput Range Streaming & Live Bar Chart State (1 → 2,205) ────
+  final cycleQualityMap = <int, String>{}.obs;
+  final streamProgress = 0.0.obs;
+  final streamingThroughput = 0.obs;
+  final isRangeStreaming = false.obs;
+  final rangeStreamStart = 1.obs;
+  final rangeStreamEnd = 2205.obs;
+  final rangeStreamCurrent = 1.obs;
+  bool _cancelRangeStreamingRequested = false;
+
   // ── Raw 17-Sensor ZIP Package Import State (Approach B) ───────────────────
   final isZipImportMode = false.obs;
   final pickedZipBytes = Rxn<Uint8List>();
@@ -97,6 +107,8 @@ class EvidenceController extends GetxController {
     return latestPdfEvidence.value;
   }
 
+  Timer? _autoSyncTimer;
+
   @override
   void onInit() {
     super.onInit();
@@ -105,10 +117,18 @@ class EvidenceController extends GetxController {
     _mockRepo = EvidenceRepositoryMock();
 
     loadTimeline();
+
+    // Background synchronizer: reflects real-time Supabase CRUD operations dynamically
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!isStreamingLiveCycle.value && !isRangeStreaming.value && !isUploading.value) {
+        loadTimeline(autoSelectLatest: false);
+      }
+    });
   }
 
   @override
   void onClose() {
+    _autoSyncTimer?.cancel();
     _streamTimer?.cancel();
     cycleTextController.dispose();
     notesController.dispose();
@@ -148,7 +168,7 @@ class EvidenceController extends GetxController {
       return;
     }
     cycleId.value = parsed;
-    selectedPreset.value = (parsed == 1) ? 'CYCLE_1' : (parsed == 211 ? 'CYCLE_211' : 'CUSTOM');
+    selectedPreset.value = (parsed == 1) ? 'CYCLE_1' : (parsed == 211 ? 'CYCLE_211' : (parsed == 2205 ? 'CYCLE_2205' : 'CUSTOM'));
   }
 
   void onSliderChanged(double val) {
@@ -156,14 +176,14 @@ class EvidenceController extends GetxController {
     cycleId.value = intVal;
     cycleTextController.text = intVal.toString();
     cycleError.value = null;
-    selectedPreset.value = (intVal == 1) ? 'CYCLE_1' : (intVal == 211 ? 'CYCLE_211' : 'CUSTOM');
+    selectedPreset.value = (intVal == 1) ? 'CYCLE_1' : (intVal == 211 ? 'CYCLE_211' : (intVal == 2205 ? 'CYCLE_2205' : 'CUSTOM'));
   }
 
   void setCyclePreset(int targetCycle) {
     cycleId.value = targetCycle;
     cycleTextController.text = targetCycle.toString();
     cycleError.value = null;
-    selectedPreset.value = (targetCycle == 1) ? 'CYCLE_1' : (targetCycle == 211 ? 'CYCLE_211' : 'CUSTOM');
+    selectedPreset.value = (targetCycle == 1) ? 'CYCLE_1' : (targetCycle == 211 ? 'CYCLE_211' : (targetCycle == 2205 ? 'CYCLE_2205' : 'CUSTOM'));
   }
 
   // ── 60-Second Real-Time Machine Streaming Implementation ──────────────────
@@ -236,7 +256,7 @@ class EvidenceController extends GetxController {
 
   /// Sequential Multi-Cycle Real-Time Execution (Cycle 1 -> Target Cycle)
   void startSequentialStream() {
-    if (isStreamingLiveCycle.value || isUploading.value) return;
+    if (isStreamingLiveCycle.value || isUploading.value || isRangeStreaming.value) return;
 
     final target = cycleId.value;
     if (target <= 1) {
@@ -244,12 +264,115 @@ class EvidenceController extends GetxController {
       return;
     }
 
+    // High-throughput progressive chunk streaming with real-time Bar Chart visualization:
+    startFullDatasetStream(start: 1, end: target);
+
+    /* PREVIOUS REAL-TIME 60s TICK SEQUENTIAL RUN PRESERVED:
     isSequentialMode.value = true;
     sequentialTargetCycle.value = target;
     sequentialCurrentCycle.value = 1;
     _runNextSequentialStep();
+    */
   }
 
+  /// High-throughput chunked streaming across cycles (1 to 2,205)
+  /// Progressively streams chunks, updating the live Bar Chart and evidence ledger.
+  Future<void> startFullDatasetStream({int start = 1, int end = 2205, int chunkSize = 50}) async {
+    if (isStreamingLiveCycle.value || isUploading.value || isRangeStreaming.value) return;
+
+    _cancelRangeStreamingRequested = false;
+    isRangeStreaming.value = true;
+    rangeStreamStart.value = start;
+    rangeStreamEnd.value = end;
+    rangeStreamCurrent.value = start;
+    streamProgress.value = 0.0;
+    errorMessage.value = null;
+
+    final totalCycles = end - start + 1;
+    final stopwatch = Stopwatch()..start();
+    int totalIngestedSoFar = 0;
+
+    try {
+      for (int chunkStart = start; chunkStart <= end; chunkStart += chunkSize) {
+        if (_cancelRangeStreamingRequested) {
+          break;
+        }
+
+        final chunkEnd = (chunkStart + chunkSize - 1 > end) ? end : (chunkStart + chunkSize - 1);
+        rangeStreamCurrent.value = chunkEnd;
+
+        // Ingest chunk from repository
+        final chunkItems = await _activeRepo.ingestTelemetryRange(
+          startCycle: chunkStart,
+          endCycle: chunkEnd,
+          tenantId: selectedTenant.value,
+          assetId: selectedAsset.value,
+        );
+
+        totalIngestedSoFar += (chunkEnd - chunkStart + 1);
+        final elapsedSec = stopwatch.elapsedMilliseconds / 1000.0;
+        if (elapsedSec > 0) {
+          streamingThroughput.value = (totalIngestedSoFar / elapsedSec).round();
+        }
+
+        // Update cycle quality map reactively
+        final Map<int, String> newChunkQuality = {};
+        for (final item in chunkItems) {
+          if (item.cycleId != null) {
+            newChunkQuality[item.cycleId!] = item.qualityFlag;
+          }
+        }
+        cycleQualityMap.addAll(newChunkQuality);
+
+        // Upsert into evidence history
+        for (final item in chunkItems) {
+          final existingIdx = evidenceHistory.indexWhere((e) => e.isTelemetry && e.cycleId == item.cycleId);
+          if (existingIdx >= 0) {
+            evidenceHistory[existingIdx] = item;
+          } else {
+            evidenceHistory.insert(0, item);
+          }
+        }
+
+        if (chunkItems.isNotEmpty) {
+          latestTelemetryEvidence.value = chunkItems.last;
+        }
+
+        streamProgress.value = (totalIngestedSoFar / totalCycles).clamp(0.0, 1.0);
+
+        // Yield 30ms so Flutter web renderer smoothly repaints the live Bar Chart
+        await Future.delayed(const Duration(milliseconds: 30));
+      }
+
+      // Ingestion sequence completed
+      cycleId.value = end;
+      cycleTextController.text = end.toString();
+      selectedPreset.value = (end == 1) ? 'CYCLE_1' : (end == 211 ? 'CYCLE_211' : (end == 2205 ? 'CYCLE_2205' : 'CUSTOM'));
+
+      Get.snackbar(
+        'Full Dataset Ingestion Complete',
+        'Streamed and sealed $totalIngestedSoFar cycles into Supabase ledger with SHA-256 integrity.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF10B981),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      errorMessage.value = e.toString();
+      Get.snackbar(
+        'Range Streaming Error',
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: Colors.white,
+      );
+    } finally {
+      isRangeStreaming.value = false;
+      stopwatch.stop();
+    }
+  }
+
+  /* PREVIOUS REAL-TIME 60s TICK SEQUENTIAL RUN METHOD PRESERVED:
   void _runNextSequentialStep() {
     if (!isSequentialMode.value) return;
 
@@ -296,6 +419,7 @@ class EvidenceController extends GetxController {
       }
     });
   }
+  */
 
   /// Reset current session to baseline healthy state for a fresh cycle retest
   void resetRetestSession() {
@@ -340,7 +464,46 @@ class EvidenceController extends GetxController {
     );
   }
 
+  /// Completely clears/deletes all telemetry evidence records from Supabase database and memory
+  Future<void> clearAllTelemetry() async {
+    try {
+      isUploading.value = true;
+      errorMessage.value = null;
+
+      await _activeRepo.clearTelemetry(
+        tenantId: selectedTenant.value,
+        assetId: selectedAsset.value,
+      );
+
+      evidenceHistory.removeWhere((e) => e.isTelemetry);
+      cycleQualityMap.clear();
+      latestTelemetryEvidence.value = null;
+
+      Get.snackbar(
+        'Telemetry Data Cleared',
+        'Successfully deleted all telemetry records from Supabase database and memory.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF0F172A),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      errorMessage.value = e.toString();
+      Get.snackbar(
+        'Clear Failed',
+        e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: Colors.white,
+      );
+    } finally {
+      isUploading.value = false;
+    }
+  }
+
   void cancelLiveStream() {
+    _cancelRangeStreamingRequested = true;
+    isRangeStreaming.value = false;
     _streamTimer?.cancel();
     isStreamingLiveCycle.value = false;
     isSequentialMode.value = false;
@@ -688,9 +851,34 @@ class EvidenceController extends GetxController {
         tenantId: selectedTenant.value,
         assetId: selectedAsset.value,
       );
-      evidenceHistory.assignAll(items);
 
-      if (autoSelectLatest) {
+      // Performance Optimization: Check if timeline records actually changed
+      // before updating RxList to prevent triggering heavy table rebuilds on static data.
+      bool hasChanged = items.length != evidenceHistory.length;
+      if (!hasChanged && items.isNotEmpty && evidenceHistory.isNotEmpty) {
+        if (items.first.id != evidenceHistory.first.id ||
+            items.last.id != evidenceHistory.last.id) {
+          hasChanged = true;
+        }
+      }
+
+      if (hasChanged) {
+        evidenceHistory.assignAll(items);
+
+        // Rebuild quality map strictly from synchronized database records
+        cycleQualityMap.clear();
+        for (final it in items) {
+          if (it.isTelemetry && it.cycleId != null) {
+            cycleQualityMap[it.cycleId!] = it.qualityFlag;
+          }
+        }
+      }
+
+      if (items.isEmpty) {
+        latestTelemetryEvidence.value = null;
+        evidenceHistory.clear();
+        cycleQualityMap.clear();
+      } else if (autoSelectLatest) {
         for (final it in items) {
           if (it.isTelemetry && latestTelemetryEvidence.value == null) {
             latestTelemetryEvidence.value = it;
@@ -710,6 +898,14 @@ class EvidenceController extends GetxController {
           assetId: selectedAsset.value,
         );
         evidenceHistory.assignAll(mockItems);
+
+        cycleQualityMap.clear();
+        for (final it in mockItems) {
+          if (it.isTelemetry && it.cycleId != null) {
+            cycleQualityMap[it.cycleId!] = it.qualityFlag;
+          }
+        }
+
         if (autoSelectLatest) {
           for (final it in mockItems) {
             if (it.isTelemetry && latestTelemetryEvidence.value == null) {

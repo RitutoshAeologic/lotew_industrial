@@ -19,8 +19,9 @@ class DioClient {
     dio = Dio(
       BaseOptions(
         baseUrl: effectiveBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 180),
         headers: {
           'Accept': 'application/json',
           'ngrok-skip-browser-warning': 'true',

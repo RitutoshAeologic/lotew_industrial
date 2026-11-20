@@ -14,7 +14,6 @@ class AppFormatters {
     if (ms == null) return 'N/A';
     if (ms == 0.0) return '0 ms (Synchronous)';
     if (ms < 0) return '0 ms';
-    if (ms >= 86400000.0) return 'N/A (Bench Replay)';
 
     if (ms < 1000) {
       return '${ms.toStringAsFixed(1)} ms';

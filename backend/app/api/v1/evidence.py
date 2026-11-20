@@ -10,7 +10,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
-from ...models.canonical import EvidenceItem, IngestCycleRequest
+from ...models.canonical import EvidenceItem, IngestCycleRequest, IngestRangeRequest
 from ...services.evidence_service import EvidenceService
 
 logger = logging.getLogger("lotew.industrial.api.evidence")
@@ -129,6 +129,29 @@ async def ingest_cycle(
         raise HTTPException(status_code=500, detail=f"Cycle ingestion failed: {str(e)}")
 
 
+@router.post("/ingest-range", response_model=List[EvidenceItem], summary="Ingest Range of 17-Sensor Telemetry Cycles")
+async def ingest_range(
+    request: IngestRangeRequest,
+    evidence_service: EvidenceService = Depends(get_evidence_service),
+):
+    """
+    High-throughput progressive ingestion for a sequence of cycles (e.g. 1 to 50, or 1 to 2205).
+    """
+    try:
+        items = evidence_service.ingest_telemetry_range(
+            start_cycle=request.start_cycle,
+            end_cycle=request.end_cycle,
+            tenant_id=request.tenant_id,
+            asset_id=request.asset_id,
+        )
+        return items
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Error ingesting cycles {request.start_cycle}..{request.end_cycle}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Cycle range ingestion failed: {str(e)}")
+
+
 @router.post("/upload-rig-zip", summary="Upload Raw 17-Sensor ZIP Package")
 async def upload_rig_zip(
     file: UploadFile = File(..., description="ZIP archive containing raw .txt sensor files"),
@@ -175,6 +198,23 @@ async def get_timeline(
     except Exception as e:
         logger.error(f"Failed fetching timeline: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed fetching timeline: {str(e)}")
+
+
+@router.delete("/clear-telemetry", summary="Clear All Ingested Telemetry Data")
+async def clear_telemetry(
+    tenant_id: str = Query(default="hydraulic_lab", description="Tenant ID"),
+    asset_id: str = Query(default="hydraulic_rig_01", description="Asset ID"),
+    evidence_service: EvidenceService = Depends(get_evidence_service),
+):
+    """
+    Deletes all telemetry cycle evidence records from Supabase database
+    and completely empties the local in-memory store.
+    """
+    try:
+        return evidence_service.clear_telemetry(tenant_id=tenant_id, asset_id=asset_id)
+    except Exception as e:
+        logger.error(f"Failed deleting telemetry: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed deleting telemetry: {str(e)}")
 
 
 @router.get("/{evidence_id}", response_model=EvidenceItem, summary="Get Single Evidence Item")

@@ -54,18 +54,9 @@ class DatabaseService:
         """
         Idempotency Check:
         Verifies if this cycle has already been ingested for the specified asset.
+        Queries Supabase directly (source of truth) and synchronizes local memory cache.
         """
-        # Check memory cache first
-        for item in self._memory_store.values():
-            if (
-                item.tenant_id == tenant_id
-                and item.asset_id == asset_id
-                and item.evidence_type == "TELEMETRY_CYCLE"
-                and item.cycle_id == cycle_id
-            ):
-                return item
-
-        # Check Supabase
+        # Check Supabase first if available (truth from database)
         if self._supabase_client:
             for tbl in [
                 lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
@@ -87,11 +78,81 @@ class DatabaseService:
                         item = self._row_to_item(row)
                         self._memory_store[item.id] = item
                         return item
-                    break
+                    elif query.data is not None:
+                        # Record is NOT in Supabase - purge any stale entry from memory cache
+                        stale_ids = [
+                            k for k, v in self._memory_store.items()
+                            if v.tenant_id == tenant_id and v.asset_id == asset_id and v.cycle_id == cycle_id
+                        ]
+                        for k in stale_ids:
+                            del self._memory_store[k]
+                        return None
                 except Exception as e:
                     logger.debug(f"Query check attempt failed: {e}")
 
+        # Fallback to local memory cache if Supabase is offline
+        for item in self._memory_store.values():
+            if (
+                item.tenant_id == tenant_id
+                and item.asset_id == asset_id
+                and item.evidence_type == "TELEMETRY_CYCLE"
+                and item.cycle_id == cycle_id
+            ):
+                return item
+
+        # PREVIOUS IN-MEMORY FIRST IMPLEMENTATION PRESERVED:
+        # for item in self._memory_store.values():
+        #     if item.tenant_id == tenant_id and item.asset_id == asset_id and item.cycle_id == cycle_id:
+        #         return item
+
         return None
+
+    def find_cycles_in_range(self, tenant_id: str, asset_id: str, start_cycle: int, end_cycle: int) -> dict:
+        """
+        Bulk Idempotency Check:
+        Fetches all already-ingested cycles in [start_cycle, end_cycle] in a single query.
+        Returns a dict mapping cycle_id -> EvidenceItem.
+        """
+        if self._supabase_client:
+            for tbl in [
+                lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                lambda: self._supabase_client.table("evidence_streams"),
+            ]:
+                try:
+                    query = (
+                        tbl()
+                        .select("*")
+                        .eq("tenant_id", tenant_id)
+                        .eq("asset_id", asset_id)
+                        .eq("evidence_type", "TELEMETRY_CYCLE")
+                        .gte("cycle_id", start_cycle)
+                        .lte("cycle_id", end_cycle)
+                        .execute()
+                    )
+                    if query.data is not None:
+                        cached: dict = {}
+                        for row in query.data:
+                            item = self._row_to_item(row)
+                            self._memory_store[item.id] = item
+                            if item.cycle_id is not None:
+                                cached[item.cycle_id] = item
+                        return cached
+                except Exception as e:
+                    logger.debug(f"Bulk range query attempt failed: {e}")
+
+        # Fallback to local memory cache if Supabase query failed
+        cached = {}
+        for item in self._memory_store.values():
+            if (
+                item.tenant_id == tenant_id
+                and item.asset_id == asset_id
+                and item.evidence_type == "TELEMETRY_CYCLE"
+                and item.cycle_id is not None
+                and start_cycle <= item.cycle_id <= end_cycle
+            ):
+                cached[item.cycle_id] = item
+
+        return cached
 
     def save_evidence(self, item: EvidenceItem) -> EvidenceItem:
         """
@@ -122,23 +183,88 @@ class DatabaseService:
                 "canonical_data": item.canonical_data,
             }
 
+            # Safe JSON-serializable sanitization for Supabase postgrest
+            clean_row_data = json.loads(json.dumps(row_data, default=str))
+
+            persisted = False
+            last_err = None
             for tbl in [
                 lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
                 lambda: self._supabase_client.table("evidence_streams"),
             ]:
                 try:
-                    tbl().upsert(row_data).execute()
+                    # Previous direct upsert:
+                    # tbl().upsert(row_data).execute()
+                    tbl().upsert(clean_row_data).execute()
+                    persisted = True
                     logger.info(f"Persisted evidence {item.id} to Supabase evidence_streams.")
                     break
                 except Exception as e:
-                    logger.warning(f"Could not persist to Supabase: {e}. Saved in local memory.")
+                    last_err = e
+
+            if not persisted and last_err:
+                logger.warning(f"Could not persist to Supabase: {last_err}. Saved in local memory.")
 
         return item
+
+    def save_evidence_batch(self, items: List[EvidenceItem]) -> List[EvidenceItem]:
+        """
+        Persists a batch of evidence items to database and local store in chunks.
+        """
+        for item in items:
+            self._memory_store[item.id] = item
+
+        if self._supabase_client and items:
+            rows_data = []
+            for item in items:
+                row = {
+                    "id": item.id,
+                    "tenant_id": item.tenant_id,
+                    "asset_id": item.asset_id,
+                    "component_id": item.component_id or "system",
+                    "evidence_type": item.evidence_type,
+                    "cycle_id": item.cycle_id,
+                    "raw_file_name": item.raw_file_name,
+                    "raw_storage_path": item.raw_storage_path,
+                    "raw_file_sha256": item.raw_file_sha256,
+                    "event_time": item.event_time.isoformat() if item.event_time else None,
+                    "ingestion_time": item.ingestion_time.isoformat(),
+                    "available_time": item.available_time.isoformat(),
+                    "ingestion_latency_ms": None if (item.ingestion_latency_ms is None or item.ingestion_latency_ms >= 86400000.0) else item.ingestion_latency_ms,
+                    "processing_latency_ms": item.processing_latency_ms,
+                    "quality_flag": item.quality_flag,
+                    "extracted_text": item.extracted_text,
+                    "canonical_data": item.canonical_data,
+                }
+                rows_data.append(json.loads(json.dumps(row, default=str)))
+
+            chunk_size = 50
+            for i in range(0, len(rows_data), chunk_size):
+                chunk = rows_data[i : i + chunk_size]
+                chunk_persisted = False
+                chunk_err = None
+                for tbl in [
+                    lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                    lambda: self._supabase_client.table("evidence_streams"),
+                ]:
+                    try:
+                        tbl().upsert(chunk).execute()
+                        chunk_persisted = True
+                        logger.info(f"Persisted batch of {len(chunk)} evidence rows to Supabase.")
+                        break
+                    except Exception as e:
+                        chunk_err = e
+
+                if not chunk_persisted and chunk_err:
+                    logger.warning(f"Could not persist batch to Supabase: {chunk_err}. Saved in local memory.")
+
+        return items
 
     def get_timeline(self, tenant_id: str, asset_id: str) -> List[EvidenceItem]:
         """
         Retrieves interleaved timeline of all PDF documents and Telemetry cycles,
         sorted chronologically by event_time ASC.
+        Fetches directly from Supabase (source of truth) and synchronizes in-memory store.
         """
         items: List[EvidenceItem] = []
 
@@ -148,23 +274,51 @@ class DatabaseService:
                 lambda: self._supabase_client.table("evidence_streams"),
             ]:
                 try:
-                    query = (
-                        tbl()
-                        .select("*")
-                        .eq("tenant_id", tenant_id)
-                        .eq("asset_id", asset_id)
-                        .order("event_time", desc=False)
-                        .execute()
-                    )
-                    if query.data:
-                        items = [self._row_to_item(r) for r in query.data]
-                        for item in items:
-                            self._memory_store[item.id] = item
-                        return items
+                    all_rows = []
+                    page_size = 1000
+                    start = 0
+                    while True:
+                        query = (
+                            tbl()
+                            .select("*")
+                            .eq("tenant_id", tenant_id)
+                            .eq("asset_id", asset_id)
+                            .order("event_time", desc=False)
+                            .range(start, start + page_size - 1)
+                            .execute()
+                        )
+                        if query.data is not None:
+                            all_rows.extend(query.data)
+                            if len(query.data) < page_size:
+                                break
+                            start += page_size
+                        else:
+                            break
+
+                    items = [self._row_to_item(r) for r in all_rows]
+
+                    # Synchronize memory store for this tenant & asset with Supabase database truth:
+                    # If records were deleted or cleared in Supabase, purge them from local memory as well!
+                    stale_ids = [
+                        k for k, v in self._memory_store.items()
+                        if v.tenant_id == tenant_id and v.asset_id == asset_id
+                    ]
+                    for k in stale_ids:
+                        del self._memory_store[k]
+                    for item in items:
+                        self._memory_store[item.id] = item
+
+                    return items
                 except Exception as e:
                     logger.debug(f"Timeline query attempt failed: {e}")
 
-        # Fallback to in-memory items
+        # PREVIOUS NON-PAGINATED FALLBACK PRESERVED:
+        # if self._supabase_client:
+        #     query = self._supabase_client.table("evidence_streams").select("*").eq("tenant_id", tenant_id).execute()
+        #     if query.data:
+        #         return [self._row_to_item(r) for r in query.data]
+
+        # Fallback to in-memory items only if Supabase is completely unreachable
         items = [
             it for it in self._memory_store.values()
             if it.tenant_id == tenant_id and it.asset_id == asset_id
@@ -174,10 +328,7 @@ class DatabaseService:
         return items
 
     def get_by_id(self, evidence_id: str) -> Optional[EvidenceItem]:
-        """Fetch single evidence item by ID."""
-        if evidence_id in self._memory_store:
-            return self._memory_store[evidence_id]
-
+        """Fetch single evidence item by ID directly from Supabase, syncing memory store."""
         if self._supabase_client:
             for tbl in [
                 lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
@@ -195,10 +346,58 @@ class DatabaseService:
                         item = self._row_to_item(res.data[0])
                         self._memory_store[item.id] = item
                         return item
+                    elif res.data is not None:
+                        # Record not found in Supabase (e.g. deleted); remove from memory
+                        if evidence_id in self._memory_store:
+                            del self._memory_store[evidence_id]
+                        return None
                 except Exception:
                     pass
 
+        if evidence_id in self._memory_store:
+            return self._memory_store[evidence_id]
+
         return None
+
+    def delete_telemetry_records(self, tenant_id: str, asset_id: str) -> int:
+        """
+        Deletes all telemetry cycle records for the given tenant & asset
+        from Supabase database (both public and industrial schemas) and purges local memory store.
+        Returns the number of deleted records.
+        """
+        deleted_count = 0
+
+        # 1. Purge from Supabase database
+        if self._supabase_client:
+            for tbl in [
+                lambda: self._supabase_client.schema("industrial").table("evidence_streams"),
+                lambda: self._supabase_client.table("evidence_streams"),
+            ]:
+                try:
+                    res = (
+                        tbl()
+                        .delete()
+                        .eq("tenant_id", tenant_id)
+                        .eq("asset_id", asset_id)
+                        .eq("evidence_type", "TELEMETRY_CYCLE")
+                        .execute()
+                    )
+                    if res.data:
+                        deleted_count += len(res.data)
+                        logger.info(f"Deleted {len(res.data)} telemetry records from Supabase.")
+                except Exception as e:
+                    logger.debug(f"Supabase delete attempt on table failed: {e}")
+
+        # 2. Always purge matching records from local memory store
+        stale_keys = [
+            k for k, v in self._memory_store.items()
+            if v.tenant_id == tenant_id and v.asset_id == asset_id and v.evidence_type == "TELEMETRY_CYCLE"
+        ]
+        for k in stale_keys:
+            del self._memory_store[k]
+
+        logger.info(f"Purged {len(stale_keys)} telemetry records from local memory store.")
+        return deleted_count or len(stale_keys)
 
     def _row_to_item(self, row: dict) -> EvidenceItem:
         """Converts database row to EvidenceItem model."""

@@ -67,10 +67,11 @@ class _CanonicalJsonViewerState extends State<CanonicalJsonViewer> {
         priority = statsOrder;
       }
 
-      if (priority != null) {
+      final p = priority;
+      if (p != null) {
         keys.sort((a, b) {
-          final idxA = priority!.indexOf(a);
-          final idxB = priority!.indexOf(b);
+          final idxA = p.indexOf(a);
+          final idxB = p.indexOf(b);
           if (idxA != -1 && idxB != -1) return idxA.compareTo(idxB);
           if (idxA != -1) return -1;
           if (idxB != -1) return 1;
