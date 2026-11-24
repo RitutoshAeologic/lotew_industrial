@@ -123,8 +123,8 @@ class EvidenceRepositoryMock implements EvidenceRepository {
     required bool isDegraded,
   }) {
     final now = DateTime.now().toUtc();
-    final medianPressure = isDegraded ? 110.4 : 156.25;
-    final medianFlow = isDegraded ? 2.15 : 7.84;
+    final medianPressure = isDegraded ? 145.0 : 155.0;
+    final medianFlow = isDegraded ? 17.5 : 19.2;
 
     final ps1Curve = List.generate(60, (i) {
       double factor;

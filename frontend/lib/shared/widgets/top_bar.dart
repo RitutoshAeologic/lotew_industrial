@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_text_styles.dart';
+import '../../core/controllers/persona_controller.dart';
 import '../../core/responsive/responsive_controller.dart';
 
 class TopBar extends StatelessWidget implements PreferredSizeWidget {
@@ -14,9 +15,10 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final rc = ResponsiveController.to;
+    final personaCtrl = PersonaController.to;
 
     return AppBar(
-      elevation: 0,
+      elevation: 0.5,
       backgroundColor: Colors.white,
       centerTitle: false,
       automaticallyImplyLeading: false,
@@ -25,6 +27,7 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             icon: Icon(rc.isSidebarExpanded.value ? Icons.menu_open_rounded : Icons.menu_rounded),
             color: AppColors.slate900,
+            tooltip: 'Toggle Navigation',
             onPressed: () {
               if (rc.isMobile) {
                 Scaffold.of(context).openDrawer();
@@ -34,80 +37,122 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
             },
           ),
           const SizedBox(width: AppSpacing.xs),
-          Flexible(
-            child: Text(
-              'Lotew Industrial Evidentiary Assurance',
-              style: AppTextStyles.headingSmall,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+
+          // ── Clean Enterprise Portal Branding ───────────────────────────────
+          Obx(() {
+            final p = personaCtrl.currentPersona.value;
+            return Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: p.badgeColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(p.icon, color: p.badgeColor, size: 20),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      p.portalTitle,
+                      style: AppTextStyles.headingSmall.copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.slate900,
+                      ),
+                    ),
+                    Text(
+                      p.portalSubtitle,
+                      style: AppTextStyles.monoSmall.copyWith(
+                        fontSize: 11,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }),
         ],
       ),
       actions: [
         if (rc.isDesktop) ...[
-          // Active Tenant & Rig Scope Badge (Replaced dead-click dropdown with crisp multi-tenant status)
-          Tooltip(
-            message: 'Active Multi-Tenant Scope: ${AppConstants.defaultTenantName}\nRig ID: ${AppConstants.defaultAssetId} (Physical Test Bench)',
-            waitDuration: const Duration(milliseconds: 200),
-            child: Container(
+          // ── Clean Role / Account Switcher ──────────────────────────────────
+          Obx(() {
+            final current = personaCtrl.currentPersona.value;
+            return Container(
               margin: const EdgeInsets.symmetric(vertical: 10),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: AppColors.bgLight,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.borderLight),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: current.id,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: current.badgeColor, size: 18),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: current.badgeColor,
+                    fontSize: 12,
                   ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    'TENANT: ${AppConstants.defaultTenantId}',
-                    style: AppTextStyles.monoSmall.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.slate900,
-                      fontSize: 11,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  const Text('|', style: TextStyle(color: AppColors.borderLight, fontSize: 11)),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    'RIG: ${AppConstants.defaultAssetId}',
-                    style: AppTextStyles.monoSmall.copyWith(
-                      color: AppColors.slate600,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+                  onChanged: (newId) {
+                    if (newId != null) {
+                      personaCtrl.switchPersona(newId);
+                    }
+                  },
+                  items: personaCtrl.personas.map((p) {
+                    return DropdownMenuItem<String>(
+                      value: p.id,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(p.icon, size: 16, color: p.badgeColor),
+                          const SizedBox(width: 8),
+                          Text(p.name),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
-            ),
-          ),
+            );
+          }),
           const SizedBox(width: AppSpacing.md),
 
-          // Live Forensic Status Indicator
+          // ── Active Rig Scope Indicator ─────────────────────────────────────
           Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.slate900,
-              borderRadius: BorderRadius.circular(6),
+              color: AppColors.bgLight,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.borderLight),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.lock_outline_rounded, size: 14, color: AppColors.primary),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: AppColors.success,
+                    shape: BoxShape.circle,
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'SHA-256 LEDGER ACTIVE',
-                  style: AppTextStyles.labelCaps.copyWith(color: AppColors.primary, fontSize: 10),
+                const Text(
+                  'RIG #01 • ONLINE',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.slate900,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ],
             ),

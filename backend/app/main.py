@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .api.v1.evidence import router as evidence_router
+from .api.v1.replay import router as replay_router
 from .core.config import get_settings
 from .models.canonical import HealthResponse
 
@@ -66,6 +67,7 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(evidence_router)
+app.include_router(replay_router)
 
 
 # ── Health Endpoints ──────────────────────────────────────────────────────────
